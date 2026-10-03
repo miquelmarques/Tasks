@@ -8,7 +8,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -19,7 +18,6 @@
             <p class="subtitle">Inicia sessió per gestionar el teu progrés</p>
         </header>
         
-        <!-- Secció d'Autenticació -->
         <div id="auth-section" class="auth-card">
             <div class="input-group">
                 <label>Correu electrònic</label>
@@ -35,15 +33,12 @@
             </div>
         </div>
 
-        <!-- Secció de Tasques (oculta per defecte) -->
         <div id="main-section" style="display: none;">
             <div class="user-bar">
                 <span id="user-email"></span>
                 <button id="logout-btn" class="btn-logout">Sortir</button>
             </div>
-            <div id="tasks-container" class="tasks-grid">
-                <!-- Les tasques es generaran aquí -->
-            </div>
+            <div id="tasks-container" class="tasks-grid"></div>
         </div>
     </div>
     <script src="script.js"></script>

@@ -1,10 +1,10 @@
 // CONFIGURACIÓ SUPABASE
-const SUPABASE_URL = 'https://lwoobofrqovfbrdksayz.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_oIRnKNsYFB_us0Sun5fMsA_yetvg0sI';
+const SUPABASE_URL = 'TUA_URL_DE_SUPABASE';
+const SUPABASE_KEY = 'TUA_KEY_ANON_DE_SUPABASE';
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Usamos supabaseClient para evitar conflictos con la librería global 'supabase'
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Elements DOM
 const authSection = document.getElementById('auth-section');
 const mainSection = document.getElementById('main-section');
 const emailInput = document.getElementById('email');
@@ -15,7 +15,6 @@ const logoutBtn = document.getElementById('logout-btn');
 const userEmailSpan = document.getElementById('user-email');
 const tasksContainer = document.getElementById('tasks-container');
 
-// Eventos de Autenticació
 loginBtn.addEventListener('click', handleLogin);
 signupBtn.addEventListener('click', handleSignUp);
 logoutBtn.addEventListener('click', handleLogout);
@@ -23,7 +22,7 @@ logoutBtn.addEventListener('click', handleLogout);
 async function handleSignUp() {
     const email = emailInput.value;
     const password = passwordInput.value;
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
     if (error) alert(error.message);
     else alert("Compte creat! Revisa el teu correu per confirmar.");
 }
@@ -31,18 +30,18 @@ async function handleSignUp() {
 async function handleLogin() {
     const email = emailInput.value;
     const password = passwordInput.value;
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) alert(error.message);
     else checkUser();
 }
 
 async function handleLogout() {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     checkUser();
 }
 
 async function checkUser() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     if (session) {
         authSection.style.display = 'none';
         mainSection.style.display = 'block';
@@ -56,16 +55,14 @@ async function checkUser() {
 
 async function loadAppData(userId) {
     try {
-        // 1. Carregar totes les tasques
-        const { data: tasks, error: taskError } = await supabase
+        const { data: tasks, error: taskError } = await supabaseClient
             .from('tasks')
             .select('*')
             .order('id', { ascending: true });
 
         if (taskError) throw taskError;
 
-        // 2. Carregar el progrés de l'usuari
-        const { data: progress, error: progError } = await supabase
+        const { data: progress, error: progError } = await supabaseClient
             .from('user_tasks')
             .select('*')
             .eq('user_id', userId);
@@ -81,7 +78,6 @@ async function loadAppData(userId) {
 
 function renderTasks(tasks, progress) {
     tasksContainer.innerHTML = "";
-    
     tasks.forEach(task => {
         const userProgress = progress.find(p => p.task_id === task.id);
         const isChecked = userProgress ? userProgress.completed : false;
@@ -96,18 +92,16 @@ function renderTasks(tasks, progress) {
         div.querySelector('input').addEventListener('change', (e) => {
             toggleTask(e.target.dataset.taskId, e.target.checked);
         });
-
         tasksContainer.appendChild(div);
     });
 }
 
 async function toggleTask(taskId, completed) {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     const userId = session.user.id;
 
     try {
-        // Upsert: Si existeix l'actualitza, si no la crea
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('user_tasks')
             .upsert({ 
                 user_id: userId, 
@@ -115,7 +109,6 @@ async function toggleTask(taskId, completed) {
                 completed: completed,
                 updated_at: new Date() 
             });
-
         if (error) throw error;
     } catch (error) {
         console.error(error);
@@ -123,5 +116,4 @@ async function toggleTask(taskId, completed) {
     }
 }
 
-// Iniciar app
 checkUser();
