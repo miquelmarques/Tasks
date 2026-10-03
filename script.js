@@ -176,7 +176,7 @@ async function toggleTask(taskId, completed, docUrl = null) {
 
     try {
         const { error } = await supabaseClient
-            .from('user_//tasks') // Corrigint l'error de la barra
+            .from('user_tasks') // Corrigint l'error de la barra
             .upsert({ 
                 user_id: userId, 
                 task_id: parseInt(taskId), 

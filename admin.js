@@ -72,12 +72,15 @@ function renderAdminTasks(tasks) {
 
 async function addTask() {
     const name = newTaskNameInput.value.trim();
-    const dueDate = newTaskDateInput.value;
+    const dueDateValue = newTaskDateInput.value;
 
-    if (!name || !dueDate) {
+    if (!name || !dueDateValue) {
         alert("Si us plau, ompliu tant el nom com la data de la tasca.");
         return;
     }
+
+    // Convertir a formato ISO para asegurar que Supabase lo guarde correctamente
+    const dueDate = new Date(dueDateValue).toISOString();
 
     const { error } = await supabaseClient
         .from('tasks')
