@@ -94,7 +94,7 @@ input {
 
 input:focus {
     outline: none;
-    border-color: var(--primary);
+    border-//color: var(--primary);
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
@@ -160,8 +160,8 @@ button:hover {
     padding: 16px 20px;
     border-radius: 14px;
     display: flex;
-    align-items: center;
-    gap: 15px;
+    flex-direction: column;
+    gap: 10px;
     transition: all 0.2s ease;
     border: 1px solid transparent;
     cursor: pointer;
@@ -171,6 +171,12 @@ button:hover {
 .task-item:hover {
     border-color: var(--primary);
     transform: scale(1.01);
+}
+
+.task-main {
+    display: flex;
+    align-items: center;
+    gap: 15px;
 }
 
 .task-item input[type="checkbox"] {
@@ -188,4 +194,30 @@ button:hover {
 .task-item input:checked + span {
     text-decoration: line-through;
     color: var(--text-muted);
+}
+
+.task-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-left: 35px;
+}
+
+.doc-link {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.doc-link:hover {
+    text-decoration: underline;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-muted);
+    font-style: italic;
 }

@@ -3,34 +3,35 @@ const SUPABASE_KEY = 'sb_publishable_oIRnKNsYFB_us0Sun5fMsA_yetvg0sI';
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const newTaskInput = document.getElementById('new-task-name');
+const newTaskNameInput = document.getElementById('new-task-name');
+const newTaskDateInput = document.getElementById('new-task-date');
 const addTaskBtn = document.getElementById('add-task-btn');
 const adminTasksContainer = document.getElementById('admin-tasks-container');
 
-async function initAdmin() {
+// Cargar tasques inicials
+window.onload = async () => {
+    // Protecció d'accés
     const { data: { session } } = await supabaseClient.auth.getSession();
-    
     if (!session) {
-        alert("Has d'iniciar sessió per accedir aquí.");
         window.location.href = 'index.html';
         return;
     }
-
-    // Verificar si l'usuari és administrador
-    const { data: profile, error } = await supabaseClient
+    
+    // Verificar admin
+    const { data: profile } = await supabaseClient
         .from('profiles')
         .select('is_admin')
         .eq('id', session.user.id)
         .single();
-
-    if (error || !profile || !profile.is_admin) {
-        alert("No tens permisos d'administrador.");
+        
+    if (!profile || !profile.is_admin) {
+        alert("No tens permisos per accedir a la gestió de tasques.");
         window.location.href = 'index.html';
         return;
     }
-
+    
     loadAdminTasks();
-}
+};
 
 async function loadAdminTasks() {
     const { data: tasks, error } = await supabaseClient
@@ -51,9 +52,17 @@ function renderAdminTasks(tasks) {
     tasks.forEach(task => {
         const div = document.createElement('div');
         div.className = 'task-item';
+        
+        const dateStr = task.due_date ? new Date(task.due_date).toLocaleString('ca-ES') : 'Sense data';
+        
         div.innerHTML = `
-            <span style="flex: 1;">${task.name}</span>
-            <button class="btn-logout" style="padding: 5px 10px; font-size: 0.7rem;" data-id="${task.id}">Eliminar</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-weight: 600;">${task.name}</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">📅 ${dateStr}</span>
+                </div>
+                <button class="btn-logout" style="padding: 5px 10px; font-size: 0.7rem;" data-id="${task.id}">Eliminar</button>
+            </div>
         `;
 
         div.querySelector('button').addEventListener('click', () => deleteTask(task.id));
@@ -62,17 +71,23 @@ function renderAdminTasks(tasks) {
 }
 
 async function addTask() {
-    const name = newTaskInput.value.trim();
-    if (!name) return;
+    const name = newTaskNameInput.value.trim();
+    const dueDate = newTaskDateInput.value;
+
+    if (!name || !dueDate) {
+        alert("Si us plau, ompliu tant el nom com la data de la tasca.");
+        return;
+    }
 
     const { error } = await supabaseClient
         .from('tasks')
-        .insert([{ name }]);
+        .insert([{ name, due_date: dueDate }]);
 
     if (error) {
         alert("Error afegint la tasca: " + error.message);
     } else {
-        newTaskInput.value = "";
+        newTaskNameInput.value = "";
+        newTaskDateInput.value = "";
         loadAdminTasks();
     }
 }
@@ -93,4 +108,3 @@ async function deleteTask(id) {
 }
 
 addTaskBtn.addEventListener('click', addTask);
-initAdmin();

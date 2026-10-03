@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Admin | Gestió de Tasques</title>
+    <title>Gestió de Tasques | Afegeix Tasques</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -12,16 +12,22 @@
     <div class="background-blob"></div>
     <div class="container">
         <header>
-            <h1>🛠️ Panel d'Administració</h1>
-            <p class="subtitle">Gestiona les tasques del curs</p>
+            <h1>🛠️ Afegeix Nova Tasca</h1>
+            <p class="subtitle">Gestiona la llista de tasques del curs</p>
         </header>
 
         <div class="auth-card">
             <div class="input-group">
-                <label>Nova Tasca</label>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="new-task-name" placeholder="Ex: Tasca 5: Entrega final" style="flex: 1;">
-                    <button id="add-task-btn">Afegir</button>
+                <label>Detalls de la Tasca</label>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="new-task-name" placeholder="Ex: Tasca 5: Entrega final" style="flex: 1;">
+                        <button id="add-task-btn">Afegir</button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="font-size: 0.85rem; min-width: 80px;">Data límit:</label>
+                        <input type="datetime-local" id="new-task-date" style="flex: 1;">
+                    </div>
                 </div>
             </div>
         </div>
