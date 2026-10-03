@@ -45,9 +45,9 @@ async function checkUser() {
         mainSection.style.display = 'block';
         userEmailSpan.textContent = session.user.email;
         
-        // Comprovar si és admin per afegir el botó
-        checkAdminStatus(session.user.id);
-        loadAppData(session.user.id);
+        // Executem amb await per assegurar l'ordre
+        await checkAdminStatus(session.user.id);
+        await loadAppData(session.user.id);
     } else {
         authSection.style.display = 'grid';
         mainSection.style.display = 'none';
@@ -55,32 +55,39 @@ async function checkUser() {
 }
 
 async function checkAdminStatus(userId) {
-    const { data: profile } = await supabaseClient
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', userId)
-        .single();
+    try {
+        const { data: profile, error } = await supabaseClient
+            .from('profiles')
+            .select('is_admin')
+            .eq('id', userId)
+            .maybeSingle(); // .maybeSingle() no llança error si no troba la fila
 
-    if (profile && profile.is_admin) {
-        const adminBtn = document.createElement('a');
-        adminBtn.href = 'admin.html';
-        adminBtn.textContent = '⚙️ Panel Admin';
-        adminBtn.style.cssText = 'background: var(--primary); color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; font-size: 0.8rem; font-weight: 600; margin-right: 10px;';
-        
-        const userBar = document.querySelector('.user-bar');
-        userBar.insertBefore(adminBtn, logoutBtn);
+        if (profile && profile.is_admin) {
+            const adminBtn = document.createElement('a');
+            adminBtn.href = 'admin.html';
+            adminBtn.textContent = '⚙️ Panel Admin';
+            adminBtn.style.cssText = 'background: var(--primary); color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; font-size: 0.8rem; font-weight: 600; margin-right: 10px;';
+            
+            const userBar = document.querySelector('.user-bar');
+            if (userBar) userBar.insertBefore(adminBtn, logoutBtn);
+        }
+    } catch (e) {
+        console.log("No s'ha pogut determinar el rol d'admin, s'assumeix usuari estàndard.");
     }
 }
 
 async function loadAppData(userId) {
     try {
+        // 1. Carregar tasques
         const { data: tasks, error: taskError } = await supabaseClient
             .from('tasks')
             .select('*')
             .order('id', { ascending: true });
 
         if (taskError) throw taskError;
+        if (!tasks) throw new Error("No s'han trobat tasques al curs.");
 
+        // 2. Carregar progrés (Si és buit, retorna [])
         const { data: progress, error: progError } = await supabaseClient
             .from('user_tasks')
             .select('*')
@@ -88,17 +95,24 @@ async function loadAppData(userId) {
 
         if (progError) throw progError;
 
-        renderTasks(tasks, progress);
+        renderTasks(tasks, progress || []);
     } catch (error) {
-        console.error(error);
-        alert("Error carregant les dades.");
+        console.error("Error detallat:", error);
+        alert("Error carregant les dades. Comprava que la taula 'tasks' tingui contingut.");
     }
 }
 
 function renderTasks(tasks, progress) {
     tasksContainer.innerHTML = "";
+    if (!tasks || tasks.length === 0) {
+        tasksContainer.innerHTML = '<div class="empty-state">No hi ha tasques assignades per al curs.</div>';
+        return;
+    }
+
     tasks.forEach(task => {
-        const userProgress = progress.find(p => p.task_id === task.id);
+        // Protecció: si progress és null, fem que sigui una llista buida
+        const safeProgress = progress || [];
+        const userProgress = safeProgress.find(p => p.task_id === task.id);
         const isChecked = userProgress ? userProgress.completed : false;
 
         const div = document.createElement('div');
