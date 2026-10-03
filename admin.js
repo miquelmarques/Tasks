@@ -7,6 +7,8 @@ const newTaskNameInput = document.getElementById('new-task-name');
 const newTaskDateInput = document.getElementById('new-task-date');
 const addTaskBtn = document.getElementById('add-task-btn');
 const adminTasksContainer = document.getElementById('admin-tasks-container');
+const csvFileInput = document.getElementById('csv-file');
+const uploadCsvBtn = document.getElementById('upload-csv-btn');
 
 // Cargar tasques inicials
 window.onload = async () => {
@@ -109,4 +111,52 @@ async function deleteTask(id) {
     }
 }
 
+async function handleCSVUpload() {
+    const file = csvFileInput.files[0];
+    if (!file) {
+        alert("Si us plau, selecciona un fitxer CSV.");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+        
+        const tasksToInsert = [];
+        
+        // Processem cada línia (nom, data)
+        lines.forEach((line, index) => {
+            const [name, dueDate] = line.split(',').map(item => item.trim());
+            if (name && dueDate) {
+                tasksToInsert.push({ name, due_date: dueDate });
+            } else {
+                console.warn(`Línia ${index + 1} ignorada per format incorrecte: ${line}`);
+            }
+        });
+
+        if (tasksToInsert.length === 0) {
+            alert("No s'han trobat dades vàlides al fitxer CSV.");
+            return;
+        }
+
+        if (!confirm(`Es pujaran ${tasksToInsert.length} tasques. Vols continuar?`)) return;
+
+        const { error } = await supabaseClient
+            .from('tasks')
+            .insert(tasksToInsert);
+
+        if (error) {
+            alert("Error pujant el CSV: " + error.message);
+        } else {
+            alert(`✅ S'han afegit ${tasksToInsert.length} tasques correctament.`);
+            csvFileInput.value = "";
+            loadAdminTasks();
+        }
+    };
+
+    reader.readAsText(file);
+}
+
 addTaskBtn.addEventListener('click', addTask);
+uploadCsvBtn.addEventListener('click', handleCSVUpload);

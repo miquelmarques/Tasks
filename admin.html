@@ -30,6 +30,17 @@
                     </div>
                 </div>
             </div>
+
+            <div class="input-group" style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
+                <label>Importació Massiva (CSV)</label>
+                <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+                    <input type="file" id="csv-file" accept=".csv" style="flex: 1; font-size: 0.8rem;">
+                    <button id="upload-csv-btn" style="background-color: var(--secondary);">Pujar CSV</button>
+                </div>
+                <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">
+                    Format del CSV: <code>nom,data</code> (ex: Tasca 1,2026-10-25T12:00)
+                </p>
+            </div>
         </div>
 
         <div id="admin-tasks-container" class="tasks-grid">

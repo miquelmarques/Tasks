@@ -136,14 +136,6 @@ function renderTasks(tasks, progress) {
         const div = document.createElement('div');
         div.className = 'task-item';
         
-        let metaHtml = '';
-        if (isChecked && userProgress) {
-            metaHtml = `
-                <div class="task-meta">
-                    ${userProgress.document_url ? `<a href="${userProgress.document_url}" target="_blank" class="doc-link">🔗 Veure document entregat</a>` : ''}
-                </div>`;
-        }
-
         div.innerHTML = `
             <div class="task-main">
                 <input type="checkbox" ${isChecked ? 'checked' : ''} data-task-id="${task.id}">
@@ -152,19 +144,10 @@ function renderTasks(tasks, progress) {
                     ${dateHtml}
                 </div>
             </div>
-            ${metaHtml}
         `;
 
         div.querySelector('input').addEventListener('change', async (e) => {
-            let docUrl = '';
-            if (e.target.checked) {
-                docUrl = prompt("Has finalitzat la tasca. Introduïu l'URL del document (ex: Google Drive):");
-                if (!docUrl) {
-                    e.target.checked = false;
-                    return;
-                }
-            }
-            await toggleTask(e.target.dataset.taskId, e.target.checked, docUrl);
+            await toggleTask(e.target.dataset.taskId, e.target.checked);
         });
         tasksContainer.appendChild(div);
     });
