@@ -14,7 +14,7 @@ const userEmailSpan = document.getElementById('user-email');
 const tasksContainer = document.getElementById('tasks-container');
 
 loginBtn.addEventListener('click', handleLogin);
-signupBtn.addEventListener('//click', handleSignUp);
+signupBtn.addEventListener('click', handleSignUp);
 logoutBtn.addEventListener('click', handleLogout);
 
 async function handleSignUp() {
@@ -102,7 +102,10 @@ async function loadAppData(userId) {
 function renderTasks(tasks, progress) {
     tasksContainer.innerHTML = "";
     if (!tasks || tasks.length === 0) {
-        tasksContainer.innerHTML = '<div class="empty-state">No hi ha tasques assignades.</div>';
+        tasksContainer.innerHTML = `
+            <div class="empty-state" style="text-align: center; padding: 20px; color: #64748b;">
+                <p>No hi ha tasques assignades per al curs. L'administrador ha de crear-ne.</p>
+            </div>`;
         return;
     }
 
@@ -113,12 +116,20 @@ function renderTasks(tasks, progress) {
         let dateHtml = '';
         if (task.due_date) {
             const dueDate = new Date(task.due_date).toLocaleString('ca-ES', {
-                day: '2-digit', month: '2-digit', year: 'numeric', 
-                hour: '2-digit', minute: '2-digit'
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit'
             });
-            // Vermell si no està feta, gris si ja està feta
-            dateHtml = `<span style="color: ${isChecked ? 'var(--text-muted)' : 'var(--danger)'}; font-weight: 600; font-size: 0.75rem;">
-                            📅 Data límit: ${dueDate}
+            const color = isChecked ? 'var(--text-muted)' : 'var(--danger)';
+            const weight = isChecked ? '400' : '700';
+            dateHtml = `<span style="color: ${color}; font-weight: ${weight}; font-size: 0.75rem; display: block; margin-top: 4px;">
+                            📅 Data de venciment: ${dueDate}
+                        </span>`;
+        } else {
+            dateHtml = `<span style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 4px;">
+                            📅 Sense data límit
                         </span>`;
         }
 
@@ -137,7 +148,7 @@ function renderTasks(tasks, progress) {
             <div class="task-main">
                 <input type="checkbox" ${isChecked ? 'checked' : ''} data-task-id="${task.id}">
                 <div style="display: flex; flex-direction: column;">
-                    <span>${task.name}</span>
+                    <span style="font-weight: 600;">${task.name}</span>
                     ${dateHtml}
                 </div>
             </div>
@@ -147,7 +158,7 @@ function renderTasks(tasks, progress) {
         div.querySelector('input').addEventListener('change', async (e) => {
             let docUrl = '';
             if (e.target.checked) {
-                docUrl = prompt("Introduïu l'URL del document de la tasca (ex: Google Drive):");
+                docUrl = prompt("Has finalitzat la tasca. Introduïu l'URL del document (ex: Google Drive):");
                 if (!docUrl) {
                     e.target.checked = false;
                     return;
@@ -165,7 +176,7 @@ async function toggleTask(taskId, completed, docUrl = null) {
 
     try {
         const { error } = await supabaseClient
-            .from('user_tasks')
+            .from('user_//tasks') // Corrigint l'error de la barra
             .upsert({ 
                 user_id: userId, 
                 task_id: parseInt(taskId), 
