@@ -1,119 +1,127 @@
-const GITHUB_CONFIG = {
-    owner: 'TU_USUARI_GITHUB',
-    repo: 'NOM_DEL_REPOSITORI',
-    tasksPath: 'tasks.json',
-    dataPath: 'data.json'
-};
+// CONFIGURACIÓ SUPABASE
+const SUPABASE_URL = 'https://lwoobofrqovfbrdksayz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_oIRnKNsYFB_us0Sun5fMsA_yetvg0sI';
 
-let currentTasks = [];
-let currentProgress = {};
-let dataSha = "";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const usernameInput = document.getElementById('username');
-const tokenInput = document.getElementById('token');
-const loadBtn = document.getElementById('load-btn');
+// Elements DOM
+const authSection = document.getElementById('auth-section');
+const mainSection = document.getElementById('main-section');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const loginBtn = document.getElementById('login-btn');
+const signupBtn = document.getElementById('signup-btn');
+const logoutBtn = document.getElementById('logout-btn');
+const userEmailSpan = document.getElementById('user-email');
 const tasksContainer = document.getElementById('tasks-container');
 
-loadBtn.addEventListener('click', initApp);
+// Eventos de Autenticació
+loginBtn.addEventListener('click', handleLogin);
+signupBtn.addEventListener('click', handleSignUp);
+logoutBtn.addEventListener('click', handleLogout);
 
-async function initApp() {
-    const user = usernameInput.value.trim();
-    const token = tokenInput.value.trim();
+async function handleSignUp() {
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) alert(error.message);
+    else alert("Compte creat! Revisa el teu correu per confirmar.");
+}
 
-    if (!user || !token) {
-        alert("Si us plau, introdueix el nom i el token.");
-        return;
+async function handleLogin() {
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) alert(error.message);
+    else checkUser();
+}
+
+async function handleLogout() {
+    await supabase.auth.signOut();
+    checkUser();
+}
+
+async function checkUser() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+        authSection.style.display = 'none';
+        mainSection.style.display = 'block';
+        userEmailSpan.textContent = session.user.email;
+        loadAppData(session.user.id);
+    } else {
+        authSection.style.display = 'grid';
+        mainSection.style.display = 'none';
     }
+}
 
+async function loadAppData(userId) {
     try {
-        // 1. Carreguem la llista de tasques (pública)
-        await loadTasks();
-        
-        // 2. Carreguem el progrés de l'usuari (privada/token)
-        await loadProgress(token);
+        // 1. Carregar totes les tasques
+        const { data: tasks, error: taskError } = await supabase
+            .from('tasks')
+            .select('*')
+            .order('id', { ascending: true });
 
-        renderTasks(user);
+        if (taskError) throw taskError;
+
+        // 2. Carregar el progrés de l'usuari
+        const { data: progress, error: progError } = await supabase
+            .from('user_tasks')
+            .select('*')
+            .eq('user_id', userId);
+
+        if (progError) throw progError;
+
+        renderTasks(tasks, progress);
     } catch (error) {
         console.error(error);
-        alert("Error iniciant l'aplicació. Revisa la configuració.");
+        alert("Error carregant les dades.");
     }
 }
 
-async function loadTasks() {
-    const response = await fetch(`https://raw.githubusercontent.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/main/${GITHUB_CONFIG.tasksPath}`);
-    if (!response.ok) throw new Error("No s'ha trobat el fitxer tasks.json");
-    currentTasks = await response.json();
-}
-
-async function loadProgress(token) {
-    const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.dataPath}`, {
-        headers: { 'Authorization': `token ${token}` }
-    });
-    
-    const fileData = await response.json();
-    if (fileData.sha) {
-        dataSha = fileData.sha;
-        const content = decodeURIComponent(escape(atob(fileData.content)));
-        currentProgress = JSON.parse(content);
-    } else {
-        currentProgress = {};
-    }
-}
-
-function renderTasks(user) {
+function renderTasks(tasks, progress) {
     tasksContainer.innerHTML = "";
     
-    if (!currentProgress[user]) {
-        currentProgress[user] = {};
-    }
-
-    currentTasks.forEach((taskText, index) => {
-        const taskKey = `task${index}`;
-        const isChecked = currentProgress[user][taskKey] || false;
+    tasks.forEach(task => {
+        const userProgress = progress.find(p => p.task_id === task.id);
+        const isChecked = userProgress ? userProgress.completed : false;
 
         const div = document.createElement('div');
         div.className = 'task-item';
         div.innerHTML = `
-            <input type="checkbox" ${isChecked ? 'checked' : ''} data-task="${taskKey}">
-            <span>${taskText}</span>
+            <input type="checkbox" ${isChecked ? 'checked' : ''} data-task-id="${task.id}">
+            <span>${task.name}</span>
         `;
 
         div.querySelector('input').addEventListener('change', (e) => {
-            updateTask(user, taskKey, e.target.checked);
+            toggleTask(e.target.dataset.taskId, e.target.checked);
         });
 
         tasksContainer.appendChild(div);
     });
 }
 
-async function updateTask(user, taskKey, status) {
-    const token = tokenInput.value.trim();
-    currentProgress[user][taskKey] = status;
+async function toggleTask(taskId, completed) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session.user.id;
 
     try {
-        const content = btoa(unescape(encodeURIComponent(JSON.stringify(currentProgress, null, 2))));
-        
-        const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.dataPath}`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `token ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                message: `Actualització de ${user}`,
-                content: content,
-                sha: dataSha
-            })
-        });
+        // Upsert: Si existeix l'actualitza, si no la crea
+        const { error } = await supabase
+            .from('user_tasks')
+            .upsert({ 
+                user_id: userId, 
+                task_id: parseInt(taskId), 
+                completed: completed,
+                updated_at: new Date() 
+            });
 
-        if (response.ok) {
-            const updatedFile = await response.json();
-            dataSha = updatedFile.content.sha;
-        } else {
-            throw new Error("Error updating file");
-        }
+        if (error) throw error;
     } catch (error) {
         console.error(error);
-        alert("Error guardant el progrés.");
+        alert("Error actualitzant la tasca.");
     }
 }
+
+// Iniciar app
+checkUser();

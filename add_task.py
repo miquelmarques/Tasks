@@ -4,7 +4,7 @@ import sys
 
 # --- CONFIGURACIÓ ---
 GITHUB_TOKEN = 'EL_TEU_TOKEN_AQUÍ'
-REPO_OWNER = 'TU_USUARI_GITHUB'
+REPO_OWNER = 'miquelmarques'
 REPO_NAME = 'NOM_DEL_REPOSITORI'
 FILE_PATH = 'tasks.json'
 # --------------------
