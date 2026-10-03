@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin | Gestió de Tasques</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="background-blob"></div>
+    <div class="container">
+        <header>
+            <h1>🛠️ Panel d'Administració</h1>
+            <p class="subtitle">Gestiona les tasques del curs</p>
+        </header>
+
+        <div class="auth-card">
+            <div class="input-group">
+                <label>Nova Tasca</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="new-task-name" placeholder="Ex: Tasca 5: Entrega final" style="flex: 1;">
+                    <button id="add-task-btn">Afegir</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="admin-tasks-container" class="tasks-grid">
+            <!-- Les tasques es llisten aquí amb botó d'eliminar -->
+        </div>
+
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="index.html" style="color: var(--primary); text-decoration: none; font-weight: 600;">⬅️ Tornar a la Web</a>
+        </div>
+    </div>
+    <script src="admin.js"></script>
+</body>
+</html>

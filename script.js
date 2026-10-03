@@ -1,8 +1,6 @@
-// CONFIGURACIÓ SUPABASE
-const SUPABASE_URL = 'https://lwoobofrqovfbrdksayz.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_oIRnKNsYFB_us0Sun5fMsA_yetvg0sI';
+const SUPABASE_URL = 'TUA_URL_DE_SUPABASE';
+const SUPABASE_KEY = 'TUA_KEY_ANON_DE_SUPABASE';
 
-// Usamos supabaseClient para evitar conflictos con la librería global 'supabase'
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const authSection = document.getElementById('auth-section');
@@ -46,10 +44,31 @@ async function checkUser() {
         authSection.style.display = 'none';
         mainSection.style.display = 'block';
         userEmailSpan.textContent = session.user.email;
+        
+        // Comprovar si és admin per afegir el botó
+        checkAdminStatus(session.user.id);
         loadAppData(session.user.id);
     } else {
         authSection.style.display = 'grid';
         mainSection.style.display = 'none';
+    }
+}
+
+async function checkAdminStatus(userId) {
+    const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', userId)
+        .single();
+
+    if (profile && profile.is_admin) {
+        const adminBtn = document.createElement('a');
+        adminBtn.href = 'admin.html';
+        adminBtn.textContent = '⚙️ Panel Admin';
+        adminBtn.style.cssText = 'background: var(--primary); color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; font-size: 0.8rem; font-weight: 600; margin-right: 10px;';
+        
+        const userBar = document.querySelector('.user-bar');
+        userBar.insertBefore(adminBtn, logoutBtn);
     }
 }
 
