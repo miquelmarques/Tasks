@@ -72,21 +72,20 @@ function renderAdminTasks(tasks) {
 
 async function addTask() {
     const name = newTaskNameInput.value.trim();
-    const dueDateValue = newTaskDateInput.value;
+    const dueDate = newTaskDateInput.value; // Tomamos el valor directo del input (YYYY-MM-DDTHH:mm)
 
-    if (!name || !dueDateValue) {
+    if (!name || !dueDate) {
         alert("Si us plau, ompliu tant el nom com la data de la tasca.");
         return;
     }
 
-    // Convertir a formato ISO para asegurar que Supabase lo guarde correctamente
-    const dueDate = new Date(dueDateValue).toISOString();
-
+    // Enviamos la fecha tal cual viene del input, Supabase/Postgres lo entiende perfectamente
     const { error } = await supabaseClient
         .from('tasks')
         .insert([{ name, due_date: dueDate }]);
 
     if (error) {
+        console.error("Error detallat:", error);
         alert("Error afegint la tasca: " + error.message);
     } else {
         newTaskNameInput.value = "";
