@@ -81,7 +81,7 @@ async function loadAppData(userId) {
         const { data: tasks, error: taskError } = await supabaseClient
             .from('tasks')
             .select('*')
-            .order('id', { ascending: true });
+            .order('due_date', { ascending: true });
 
         if (taskError) throw taskError;
 
@@ -109,23 +109,53 @@ function renderTasks(tasks, progress) {
         return;
     }
 
-    tasks.forEach(task => {
+    const now = new Date();
+
+    // Filtrar tasques: desapareixen 7 dies després de la data de venciment
+    const filteredTasks = tasks.filter(task => {
+        if (!task.due_date) return true;
+        const dueDate = new Date(task.due_date);
+        const diffDays = (dueDate - now) / (1000 * 60 * 60 * 24);
+        return diffDays >= -7;
+    });
+
+    if (filteredTasks.length === 0) {
+        tasksContainer.innerHTML = `
+            <div class="empty-state" style="text-align: center; padding: 20px; color: #64748b;">
+                <p>No hi ha tasques actives en aquest moment.</p>
+            </div>`;
+        return;
+    }
+
+    filteredTasks.forEach(task => {
         const userProgress = progress.find(p => p.task_id === task.id);
         const isChecked = userProgress ? userProgress.completed : false;
         
         let dateHtml = '';
         if (task.due_date) {
-            const dueDate = new Date(task.due_date).toLocaleString('ca-ES', {
+            const dueDate = new Date(task.due_date);
+            const diffDays = (dueDate - now) / (1000 * 60 * 60 * 24);
+            
+            const dateString = dueDate.toLocaleString('ca-ES', {
                 day: '2-digit', 
                 month: '2-digit', 
                 year: 'numeric', 
                 hour: '2-digit', 
                 minute: '2-digit'
             });
-            const color = isChecked ? 'var(--text-muted)' : 'var(--danger)';
-            const weight = isChecked ? '400' : '700';
+
+            let color = isChecked ? 'var(--text-muted)' : 'var(--danger)';
+            let weight = isChecked ? '400' : '700';
+            let prefix = '📅 Data de venciment: ';
+
+            // Avis: des d'un dia abans fins a 7 dies després
+            if (!isChecked && diffDays <= 1) {
+                color = '#f59e0b'; // Color ambar/taronja per a l'avís
+                prefix = '⚠️ AVISE! Venciment: ';
+            }
+
             dateHtml = `<span style="color: ${color}; font-weight: ${weight}; font-size: 0.75rem; display: block; margin-top: 4px;">
-                            📅 Data de venciment: ${dueDate}
+                            ${prefix}${dateString}
                         </span>`;
         } else {
             dateHtml = `<span style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 4px;">
