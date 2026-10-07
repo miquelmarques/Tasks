@@ -49,9 +49,25 @@ document.addEventListener('DOMContentLoaded', () => {
 async function handleSignUp() {
     const email = emailInput.value;
     const password = passwordInput.value;
+    
+    if (!email || !password) {
+        alert("Si us plau, omple tots els camps.");
+        return;
+    }
+
     const { data, error } = await supabaseClient.auth.signUp({ email, password });
-    if (error) alert(error.message);
-    else alert("Compte creat! Revisa el teu correu per confirmar.");
+    
+    if (error) {
+        console.error("Error de registre:", error);
+        alert("Error: " + error.message);
+    } else {
+        if (data.session) {
+            alert("Compte creat amb èxit! Ja pots accedir.");
+            checkUser(); // Això amagarà el formulari i mostrarà les tasques
+        } else {
+            alert("Compte creat! Revisa el teu correu per confirmar.");
+        }
+    }
 }
 
 async function handleLogin() {
