@@ -13,9 +13,26 @@ const logoutBtn = document.getElementById('logout-btn');
 const userEmailSpan = document.getElementById('user-email');
 const tasksContainer = document.getElementById('tasks-container');
 
+// Elements per a tasques personals
+const addPersonalTaskBtn = document.getElementById('add-personal-task-btn');
+const personalTaskModal = document.getElementById('personal-task-modal');
+const personalTaskNameInput = document.getElementById('personal-task-name');
+const personalTaskDateInput = document.getElementById('personal-task-date');
+const savePersonalTaskBtn = document.getElementById('save-personal-task-btn');
+const closeModalBtn = document.getElementById('close-modal-btn');
+
 loginBtn.addEventListener('click', handleLogin);
 signupBtn.addEventListener('click', handleSignUp);
 logoutBtn.addEventListener('click', handleLogout);
+
+// Eventos per a tasques personals
+if (addPersonalTaskBtn) addPersonalTaskBtn.addEventListener('click', () => {
+    personalTaskModal.style.display = 'flex';
+});
+if (closeModalBtn) closeModalBtn.addEventListener('click', () => {
+    personalTaskModal.style.display = 'none';
+});
+if (savePersonalTaskBtn) savePersonalTaskBtn.addEventListener('click', handleSavePersonalTask);
 
 async function handleSignUp() {
     const email = emailInput.value;
@@ -78,9 +95,11 @@ async function checkAdminStatus(userId) {
 
 async function loadAppData(userId) {
     try {
+        // Carregar tasques globals (user_id és null) i tasques personals de l'usuari
         const { data: tasks, error: taskError } = await supabaseClient
             .from('tasks')
             .select('*')
+            .or(`user_id.eq.${userId},user_id.is.null`)
             .order('due_date', { ascending: true });
 
         if (taskError) throw taskError;
@@ -244,6 +263,44 @@ async function toggleTask(taskId, completed, docUrl = null) {
     } catch (error) {
         console.error(error);
         alert("Error actualitzant la tasca.");
+    }
+async function handleSavePersonalTask() {
+    const name = personalTaskNameInput.value;
+    const dueDate = personalTaskDateInput.value;
+    
+    if (!name) {
+        alert("Si us plau, introdueix un nom per a la tasca.");
+        return;
+    }
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const userId = session.user.id;
+
+    try {
+        // 1. Crear la tasca al taulari 'tasks' vinculada a l'usuari
+        const { data: newTask, error: taskError } = await supabaseClient
+            .from('tasks')
+            .insert([
+                { 
+                    name: name, 
+                    due_date: dueDate || null, 
+                    user_id: userId 
+                }
+            ])
+            .select();
+
+        if (taskError) throw taskError;
+
+        // Tancar modal i netejar
+        personalTaskModal.style.display = 'none';
+        personalTaskNameInput.value = '';
+        personalTaskDateInput.value = '';
+
+        // Recarregar la pàgina per veure la nova tasca
+        window.location.reload();
+    } catch (error) {
+        console.error(error);
+        alert("Error creant la tasca personal: " + error.message);
     }
 }
 

@@ -36,9 +36,31 @@
         <div id="main-section" style="display: none;">
             <div class="user-bar">
                 <span id="user-email"></span>
-                <button id="logout-btn" class="btn-logout">Sortir</button>
+                <div style="display: flex; gap: 10px;">
+                    <button id="add-personal-task-btn" class="btn-personal" style="background-color: var(--accent); padding: 8px 15px; font-size: 0.8rem; box-shadow: none;">➕ Tasca Personal</button>
+                    <button id="logout-btn" class="btn-logout">Sortir</button>
+                </div>
             </div>
             <div id="tasks-container" class="tasks-grid"></div>
+        </div>
+
+        <!-- Modal per a Tasques Personals -->
+        <div id="personal-task-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>Nou Tasca Personal</h2>
+                <div class="input-group">
+                    <label>Nom de la tasca</label>
+                    <input type="text" id="personal-task-name" placeholder="Ex: Estudiar JavaScript">
+                </div>
+                <div class="input-group">
+                    <label>Data de venciment</label>
+                    <input type="datetime-local" id="personal-task-date">
+                </div>
+                <div class="modal-buttons">
+                    <button id="save-personal-task-btn">Guardar</button>
+                    <button id="close-modal-btn" class="btn-secondary">Cancel·lar</button>
+                </div>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>
