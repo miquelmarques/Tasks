@@ -111,7 +111,7 @@ function renderTasks(tasks, progress) {
 
     const now = new Date();
 
-    // Filtrar tasques: desapareixen 7 dies després de la data de venciment
+    // 1. Filtrar tasques: desapareixen 7 dies després de la data de venciment
     const filteredTasks = tasks.filter(task => {
         if (!task.due_date) return true;
         const dueDate = new Date(task.due_date);
@@ -127,59 +127,101 @@ function renderTasks(tasks, progress) {
         return;
     }
 
+    // 2. Classificar tasques per categories
+    const categories = {
+        overdue: { title: "🔴 Vencudes / Urgents", tasks: [] },
+        upcoming: { title: "📅 Pròximes", tasks: [] },
+        noDate: { title: "⚪ Sense data", tasks: [] },
+        completed: { title: "✅ Completades", tasks: [] }
+    };
+
     filteredTasks.forEach(task => {
         const userProgress = progress.find(p => p.task_id === task.id);
         const isChecked = userProgress ? userProgress.completed : false;
-        
-        let dateHtml = '';
-        if (task.due_date) {
+
+        if (isChecked) {
+            categories.completed.tasks.push(task);
+        } else if (!task.due_date) {
+            categories.noDate.tasks.push(task);
+        } else {
             const dueDate = new Date(task.due_date);
-            const diffDays = (dueDate - now) / (1000 * 60 * 60 * 24);
+            if (dueDate < now) {
+                categories.overdue.tasks.push(task);
+            } else {
+                categories.upcoming.tasks.push(task);
+            }
+        }
+    });
+
+    // 3. Renderitzar cada categoria
+    Object.values(categories).forEach(cat => {
+        if (cat.tasks.length === 0) return;
+
+        // Títol de la categoria
+        const sectionTitle = document.createElement('h3');
+        sectionTitle.textContent = cat.title;
+        sectionTitle.style.cssText = "font-size: 1.1rem; margin: 25px 0 10px 0; color: var(--text-main); font-weight: 700; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;";
+        tasksContainer.appendChild(sectionTitle);
+
+        cat.tasks.forEach(task => {
+            const userProgress = progress.find(p => p.task_id === task.id);
+            const isChecked = userProgress ? userProgress.completed : false;
             
-            const dateString = dueDate.toLocaleString('ca-ES', {
-                day: '2-digit', 
-                month: '2-digit', 
-                year: 'numeric', 
-                hour: '2-digit', 
-                minute: '2-digit'
-            });
+            let dateHtml = '';
+            if (task.due_date) {
+                const dueDate = new Date(task.due_date);
+                const diffDays = (dueDate - now) / (1000 * 60 * 60 * 24);
+                
+                const dateString = dueDate.toLocaleString('ca-ES', {
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit'
+                });
 
-            let color = isChecked ? 'var(--text-muted)' : 'var(--danger)';
-            let weight = isChecked ? '400' : '700';
-            let prefix = '📅 Data de venciment: ';
+                let color = isChecked ? 'var(--text-muted)' : 'var(--danger)';
+                let weight = isChecked ? '400' : '700';
+                let prefix = '📅 Data de venciment: ';
 
-            // Avis: des d'un dia abans fins a 7 dies després
-            if (!isChecked && diffDays <= 1) {
-                color = '#f59e0b'; // Color ambar/taronja per a l'avís
-                prefix = '⚠️ AVISE! Venciment: ';
+                if (!isChecked && diffDays <= 1) {
+                    color = '#f59e0b'; 
+                    prefix = '⚠️ AVISE! Venciment: ';
+                }
+
+                dateHtml = `<span style="color: ${color}; font-weight: ${weight}; font-size: 0.75rem; display: block; margin-top: 4px;">
+                                ${prefix}${dateString}
+                            </span>`;
+            } else {
+                dateHtml = `<span style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 4px;">
+                                📅 Sense data límit
+                            </span>`;
             }
 
-            dateHtml = `<span style="color: ${color}; font-weight: ${weight}; font-size: 0.75rem; display: block; margin-top: 4px;">
-                            ${prefix}${dateString}
-                        </span>`;
-        } else {
-            dateHtml = `<span style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 4px;">
-                            📅 Sense data límit
-                        </span>`;
-        }
-
-        const div = document.createElement('div');
-        div.className = 'task-item';
-        
-        div.innerHTML = `
-            <div class="task-main">
-                <input type="checkbox" ${isChecked ? 'checked' : ''} data-task-id="${task.id}">
-                <div style="display: flex; flex-direction: column;">
-                    <span style="font-weight: 600;">${task.name}</span>
-                    ${dateHtml}
+            const div = document.createElement('div');
+            div.className = 'task-item';
+            
+            // Fons vermell si està vencuda i no completada
+            if (!isChecked && task.due_date && new Date(task.due_date) < now) {
+                div.style.backgroundColor = '#fee2e2'; // Vermell molt clar
+                div.style.borderColor = 'var(--danger)';
+            }
+            
+            div.innerHTML = `
+                <div class="task-main">
+                    <input type="checkbox" ${isChecked ? 'checked' : ''} data-task-id="${task.id}">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-weight: 600;">${task.name}</span>
+                        ${dateHtml}
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
 
-        div.querySelector('input').addEventListener('change', async (e) => {
-            await toggleTask(e.target.dataset.taskId, e.target.checked);
+            div.querySelector('input').addEventListener('change', async (e) => {
+                await toggleTask(e.target.dataset.taskId, e.target.checked);
+            });
+            tasksContainer.appendChild(div);
         });
-        tasksContainer.appendChild(div);
     });
 }
 
