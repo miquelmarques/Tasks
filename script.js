@@ -276,6 +276,8 @@ async function toggleTask(taskId, completed, docUrl = null) {
         console.error(error);
         alert("Error actualitzant la tasca.");
     }
+}
+
 async function handleSavePersonalTask() {
     const name = personalTaskNameInput.value;
     const dueDate = personalTaskDateInput.value;
