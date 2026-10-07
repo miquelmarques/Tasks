@@ -3,36 +3,48 @@ const SUPABASE_KEY = 'sb_publishable_oIRnKNsYFB_us0Sun5fMsA_yetvg0sI';
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const authSection = document.getElementById('auth-section');
-const mainSection = document.getElementById('main-section');
-const emailInput = document.getElementById('email');
-const passwordInput = document.getElementById('password');
-const loginBtn = document.getElementById('login-btn');
-const signupBtn = document.getElementById('signup-btn');
-const logoutBtn = document.getElementById('logout-btn');
-const userEmailSpan = document.getElementById('user-email');
-const tasksContainer = document.getElementById('tasks-container');
+// Elements
+let authSection, mainSection, emailInput, passwordInput, loginBtn, signupBtn, logoutBtn, userEmailSpan, tasksContainer;
+let addPersonalTaskBtn, personalTaskModal, personalTaskNameInput, personalTaskDateInput, savePersonalTaskBtn, closeModalBtn;
 
-// Elements per a tasques personals
-const addPersonalTaskBtn = document.getElementById('add-personal-task-btn');
-const personalTaskModal = document.getElementById('personal-task-modal');
-const personalTaskNameInput = document.getElementById('personal-task-name');
-const personalTaskDateInput = document.getElementById('personal-task-date');
-const savePersonalTaskBtn = document.getElementById('save-personal-task-btn');
-const closeModalBtn = document.getElementById('close-modal-btn');
+document.addEventListener('DOMContentLoaded', () => {
+    authSection = document.getElementById('auth-section');
+    mainSection = document.getElementById('main-section');
+    emailInput = document.getElementById('email');
+    passwordInput = document.getElementById('password');
+    loginBtn = document.getElementById('login-btn');
+    signupBtn = document.getElementById('signup-btn');
+    logoutBtn = document.getElementById('logout-btn');
+    userEmailSpan = document.getElementById('user-email');
+    tasksContainer = document.getElementById('tasks-container');
 
-loginBtn.addEventListener('click', handleLogin);
-signupBtn.addEventListener('click', handleSignUp);
-logoutBtn.addEventListener('click', handleLogout);
+    addPersonalTaskBtn = document.getElementById('add-personal-task-btn');
+    personalTaskModal = document.getElementById('personal-task-modal');
+    personalTaskNameInput = document.getElementById('personal-task-name');
+    personalTaskDateInput = document.getElementById('personal-task-date');
+    savePersonalTaskBtn = document.getElementById('save-personal-task-btn');
+    closeModalBtn = document.getElementById('close-modal-btn');
 
-// Eventos per a tasques personals
-if (addPersonalTaskBtn) addPersonalTaskBtn.addEventListener('click', () => {
-    personalTaskModal.style.display = 'flex';
+    if (loginBtn) loginBtn.addEventListener('click', handleLogin);
+    if (signupBtn) signupBtn.addEventListener('click', handleSignUp);
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+    if (addPersonalTaskBtn && personalTaskModal) {
+        addPersonalTaskBtn.addEventListener('click', () => {
+            personalTaskModal.style.display = 'flex';
+        });
+    }
+    if (closeModalBtn && personalTaskModal) {
+        closeModalBtn.addEventListener('click', () => {
+            personalTaskModal.style.display = 'none';
+        });
+    }
+    if (savePersonalTaskBtn) {
+        savePersonalTaskBtn.addEventListener('click', handleSavePersonalTask);
+    }
+
+    checkUser();
 });
-if (closeModalBtn) closeModalBtn.addEventListener('click', () => {
-    personalTaskModal.style.display = 'none';
-});
-if (savePersonalTaskBtn) savePersonalTaskBtn.addEventListener('click', handleSavePersonalTask);
 
 async function handleSignUp() {
     const email = emailInput.value;
@@ -303,5 +315,3 @@ async function handleSavePersonalTask() {
         alert("Error creant la tasca personal: " + error.message);
     }
 }
-
-checkUser();
