@@ -57,6 +57,19 @@
                     <label>Data de venciment</label>
                     <input type="datetime-local" id="task-date">
                 </div>
+                <div class="input-group">
+                    <label>Color de la tasca</label>
+                    <div id="color-selector" style="display: flex; gap: 10px; margin-top: 5px;">
+                        <div class="color-option" data-color="#3b82f6" style="width: 25px; height: 25px; border-radius: 50%; background: #3b82f6; cursor: pointer; border: 2px solid transparent;"></div>
+                        <div class="color-option" data-color="#22c55e" style="width: 25px; height: 25px; border-radius: 50%; background: #22c55e; cursor: pointer; border: 2px solid transparent;"></div>
+                        <div class="color-option" data-color="#eab308" style="width: 25px; height: 25px; border-radius: 50%; background: #eab308; cursor: pointer; border: 2px solid transparent;"></div>
+                        <div class="color-option" data-color="#ef4444" style="width: 25px; height: 25px; border-radius: 50%; background: #ef4444; cursor: pointer; border: 2px solid transparent;"></div>
+                        <div class="color-option" data-color="#a855f7" style="width: 25px; height: 25px; border-radius: 50%; background: #a855f7; cursor: pointer; border: 2px solid transparent;"></div>
+                        <div class="color-option" data-color="#64748b" style="width: 25px; height: 25px; border-radius: 50%; background: #64748b; cursor: pointer; border: 2px solid transparent;"></div>
+                        <div class="color-option" data-color="" style="width: 25px; height: 25px; border-radius: 50%; background: #fff; cursor: pointer; border: 2px solid #ddd;"></div>
+                    </div>
+                    <input type="hidden" id="task-color">
+                </div>
                 <div class="modal-buttons">
                     <button id="save-task-btn">Guardar</button>
                     <button id="close-modal-btn" class="btn-secondary">Cancel·lar</button>

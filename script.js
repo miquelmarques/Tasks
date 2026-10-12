@@ -5,7 +5,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Elements
 let authSection, mainSection, emailInput, passwordInput, loginBtn, signupBtn, logoutBtn, userEmailSpan, tasksContainer;
-let addPersonalTaskBtn, taskModal, taskNameInput, taskDateInput, saveTaskBtn, closeModalBtn, taskIdInput;
+let addPersonalTaskBtn, taskModal, taskNameInput, taskDateInput, saveTaskBtn, closeModalBtn, taskIdInput, taskColorInput;
 let currentUserId = null;
 let isAdminUser = false;
 
@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveTaskBtn = document.getElementById('save-task-btn');
     closeModalBtn = document.getElementById('close-modal-btn');
     taskIdInput = document.getElementById('task-id');
+    taskColorInput = document.getElementById('task-color');
 
     if (loginBtn) loginBtn.addEventListener('click', handleLogin);
     if (signupBtn) signupBtn.addEventListener('click', handleSignUp);
@@ -45,6 +46,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (saveTaskBtn) {
         saveTaskBtn.addEventListener('click', handleSaveTask);
     }
+
+    // Lògica de selecció de color
+    document.querySelectorAll('.color-option').forEach(option => {
+        option.addEventListener('click', () => {
+            document.querySelectorAll('.color-option').forEach(opt => opt.style.borderColor = 'transparent');
+            option.style.borderColor = '#000';
+            taskColorInput.value = option.dataset.color;
+        });
+    });
 
     checkUser();
 });
@@ -302,11 +312,10 @@ async function toggleTask(taskId, completed, docUrl = null) {
     }
 }
 
-function openTaskModal(id = null, name = '', date = '') {
+function openTaskModal(id = null, name = '', date = '', color = '') {
     taskIdInput.value = id || '';
     taskNameInput.value = name;
     
-    // Formatejar la data per a l'input datetime-local (YYYY-MM-DDTHH:mm)
     if (date) {
         const d = new Date(date);
         const iso = d.toISOString().slice(0, 16);
@@ -314,6 +323,11 @@ function openTaskModal(id = null, name = '', date = '') {
     } else {
         taskDateInput.value = '';
     }
+
+    taskColorInput.value = color || '';
+    document.querySelectorAll('.color-option').forEach(option => {
+        option.style.borderColor = (option.dataset.color === color) ? '#000' : 'transparent';
+    });
 
     document.getElementById('modal-title').textContent = id ? 'Editar Tasca' : 'Nova Tasca Personal';
     taskModal.style.display = 'flex';
@@ -323,6 +337,7 @@ async function handleSaveTask() {
     const id = taskIdInput.value;
     const name = taskNameInput.value;
     const dueDate = taskDateInput.value;
+    const color = taskColorInput.value;
     
     if (!name) {
         alert("Si us plau, introdueix un nom per a la tasca.");
@@ -334,24 +349,24 @@ async function handleSaveTask() {
 
     try {
         if (id) {
-            // Mode Edició
             const { error } = await supabaseClient
                 .from('tasks')
                 .update({ 
                     name: name, 
-                    due_date: dueDate || null 
+                    due_date: dueDate || null,
+                    color: color
                 })
                 .eq('id', id);
             if (error) throw error;
         } else {
-            // Mode Creació
             const { error } = await supabaseClient
                 .from('tasks')
                 .insert([
                     { 
                         name: name, 
                         due_date: dueDate || null, 
-                        user_id: userId 
+                        user_id: userId,
+                        color: color
                     }
                 ]);
             if (error) throw error;
@@ -364,4 +379,5 @@ async function handleSaveTask() {
         alert("Error guardant la tasca: " + error.message);
     }
 }
+
 
