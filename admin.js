@@ -10,6 +10,14 @@ const adminTasksContainer = document.getElementById('admin-tasks-container');
 const csvFileInput = document.getElementById('csv-file');
 const uploadCsvBtn = document.getElementById('upload-csv-btn');
 
+// Modal Edició
+const adminTaskModal = document.getElementById('admin-task-modal');
+const adminTaskIdInput = document.getElementById('admin-task-id');
+const adminTaskNameInput = document.getElementById('admin-task-name');
+const adminTaskDateInput = document.getElementById('admin-task-date');
+const adminSaveTaskBtn = document.getElementById('admin-save-task-btn');
+const adminCloseModalBtn = document.getElementById('admin-close-modal-btn');
+
 // Cargar tasques inicials
 window.onload = async () => {
     // Protecció d'accés
@@ -59,15 +67,19 @@ function renderAdminTasks(tasks) {
         
         div.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <div style="display: flex; flex-direction: column;">
+                <div style="display: flex; flex-direction: column; flex: 1;">
                     <span style="font-weight: 600;">${task.name}</span>
                     <span style="font-size: 0.75rem; color: var(--text-muted);">📅 ${dateStr}</span>
                 </div>
-                <button class="btn-logout" style="padding: 5px 10px; font-size: 0.7rem;" data-id="${task.id}">Eliminar</button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-edit" style="padding: 5px 10px; font-size: 0.7rem; cursor: pointer; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px;" data-id="${task.id}">Editar</button>
+                    <button class="btn-logout" style="padding: 5px 10px; font-size: 0.7rem;" data-id="${task.id}">Eliminar</button>
+                </div>
             </div>
         `;
 
-        div.querySelector('button').addEventListener('click', () => deleteTask(task.id));
+        div.querySelector('.btn-logout').addEventListener('click', () => deleteTask(task.id));
+        div.querySelector('.btn-edit').addEventListener('click', () => openEditModal(task));
         adminTasksContainer.appendChild(div);
     });
 }
@@ -158,5 +170,46 @@ async function handleCSVUpload() {
     reader.readAsText(file);
 }
 
+function openEditModal(task) {
+    adminTaskIdInput.value = task.id;
+    adminTaskNameInput.value = task.name;
+    if (task.due_date) {
+        const d = new Date(task.due_date);
+        adminTaskDateInput.value = d.toISOString().slice(0, 16);
+    } else {
+        adminTaskDateInput.value = '';
+    }
+    adminTaskModal.style.display = 'flex';
+}
+
+async function saveAdminTask() {
+    const id = adminTaskIdInput.value;
+    const name = adminTaskNameInput.value.trim();
+    const dueDate = adminTaskDateInput.value;
+
+    if (!name) {
+        alert("El nom de la tasca és obligatori.");
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('tasks')
+        .update({ name, due_date: dueDate || null })
+        .eq('id', id);
+
+    if (error) {
+        alert("Error actualitzant la tasca: " + error.message);
+    } else {
+        adminTaskModal.style.display = 'none';
+        loadAdminTasks();
+    }
+}
+
 addTaskBtn.addEventListener('click', addTask);
 uploadCsvBtn.addEventListener('click', handleCSVUpload);
+
+// Modals
+adminSaveTaskBtn.addEventListener('click', saveAdminTask);
+adminCloseModalBtn.addEventListener('click', () => {
+    adminTaskModal.style.display = 'none';
+});

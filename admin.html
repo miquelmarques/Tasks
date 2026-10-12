@@ -47,6 +47,26 @@
             <!-- Les tasques es llisten aquí amb botó d'eliminar -->
         </div>
 
+        <!-- Modal per a Edició de Tasques -->
+        <div id="admin-task-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>Editar Tasca</h2>
+                <input type="hidden" id="admin-task-id">
+                <div class="input-group">
+                    <label>Nom de la tasca</label>
+                    <input type="text" id="admin-task-name">
+                </div>
+                <div class="input-group">
+                    <label>Data de venciment</label>
+                    <input type="datetime-local" id="admin-task-date">
+                </div>
+                <div class="modal-buttons">
+                    <button id="admin-save-task-btn">Guardar</button>
+                    <button id="admin-close-modal-btn" class="btn-secondary">Cancel·lar</button>
+                </div>
+            </div>
+        </div>
+
         <div style="text-align: center; margin-top: 20px;">
             <a href="index.html" style="color: var(--primary); text-decoration: none; font-weight: 600;">⬅️ Tornar a la Web</a>
         </div>

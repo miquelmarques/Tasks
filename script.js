@@ -5,7 +5,9 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Elements
 let authSection, mainSection, emailInput, passwordInput, loginBtn, signupBtn, logoutBtn, userEmailSpan, tasksContainer;
-let addPersonalTaskBtn, personalTaskModal, personalTaskNameInput, personalTaskDateInput, savePersonalTaskBtn, closeModalBtn;
+let addPersonalTaskBtn, taskModal, taskNameInput, taskDateInput, saveTaskBtn, closeModalBtn, taskIdInput;
+let currentUserId = null;
+let isAdminUser = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     authSection = document.getElementById('auth-section');
@@ -19,28 +21,29 @@ document.addEventListener('DOMContentLoaded', () => {
     tasksContainer = document.getElementById('tasks-container');
 
     addPersonalTaskBtn = document.getElementById('add-personal-task-btn');
-    personalTaskModal = document.getElementById('personal-task-modal');
-    personalTaskNameInput = document.getElementById('personal-task-name');
-    personalTaskDateInput = document.getElementById('personal-task-date');
-    savePersonalTaskBtn = document.getElementById('save-personal-task-btn');
+    taskModal = document.getElementById('task-modal');
+    taskNameInput = document.getElementById('task-name');
+    taskDateInput = document.getElementById('task-date');
+    saveTaskBtn = document.getElementById('save-task-btn');
     closeModalBtn = document.getElementById('close-modal-btn');
+    taskIdInput = document.getElementById('task-id');
 
     if (loginBtn) loginBtn.addEventListener('click', handleLogin);
     if (signupBtn) signupBtn.addEventListener('click', handleSignUp);
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 
-    if (addPersonalTaskBtn && personalTaskModal) {
+    if (addPersonalTaskBtn && taskModal) {
         addPersonalTaskBtn.addEventListener('click', () => {
-            personalTaskModal.style.display = 'flex';
+            openTaskModal();
         });
     }
-    if (closeModalBtn && personalTaskModal) {
+    if (closeModalBtn && taskModal) {
         closeModalBtn.addEventListener('click', () => {
-            personalTaskModal.style.display = 'none';
+            taskModal.style.display = 'none';
         });
     }
-    if (savePersonalTaskBtn) {
-        savePersonalTaskBtn.addEventListener('click', handleSavePersonalTask);
+    if (saveTaskBtn) {
+        saveTaskBtn.addEventListener('click', handleSaveTask);
     }
 
     checkUser();
@@ -86,12 +89,15 @@ async function handleLogout() {
 async function checkUser() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (session) {
+        currentUserId = session.user.id;
         if (authSection) authSection.style.display = 'none';
         if (mainSection) mainSection.style.display = 'block';
         userEmailSpan.textContent = session.user.email;
         await checkAdminStatus(session.user.id);
         await loadAppData(session.user.id);
     } else {
+        currentUserId = null;
+        isAdminUser = false;
         if (authSection) authSection.style.display = 'grid';
         if (mainSection) mainSection.style.display = 'none';
     }
@@ -102,7 +108,9 @@ async function checkAdminStatus(userId) {
         const { data: isAdmin, error } = await supabaseClient.rpc('check_if_admin');
         if (error) throw error;
 
-        if (isAdmin === true) {
+        isAdminUser = (isAdmin === true);
+
+        if (isAdminUser) {
             const userBar = document.querySelector('.user-bar');
             if (!userBar || document.getElementById('admin-link')) return;
 
@@ -294,9 +302,27 @@ async function toggleTask(taskId, completed, docUrl = null) {
     }
 }
 
-async function handleSavePersonalTask() {
-    const name = personalTaskNameInput.value;
-    const dueDate = personalTaskDateInput.value;
+function openTaskModal(id = null, name = '', date = '') {
+    taskIdInput.value = id || '';
+    taskNameInput.value = name;
+    
+    // Formatejar la data per a l'input datetime-local (YYYY-MM-DDTHH:mm)
+    if (date) {
+        const d = new Date(date);
+        const iso = d.toISOString().slice(0, 16);
+        taskDateInput.value = iso;
+    } else {
+        taskDateInput.value = '';
+    }
+
+    document.getElementById('modal-title').textContent = id ? 'Editar Tasca' : 'Nova Tasca Personal';
+    taskModal.style.display = 'flex';
+}
+
+async function handleSaveTask() {
+    const id = taskIdInput.value;
+    const name = taskNameInput.value;
+    const dueDate = taskDateInput.value;
     
     if (!name) {
         alert("Si us plau, introdueix un nom per a la tasca.");
@@ -307,29 +333,35 @@ async function handleSavePersonalTask() {
     const userId = session.user.id;
 
     try {
-        // 1. Crear la tasca al taulari 'tasks' vinculada a l'usuari
-        const { data: newTask, error: taskError } = await supabaseClient
-            .from('tasks')
-            .insert([
-                { 
+        if (id) {
+            // Mode Edició
+            const { error } = await supabaseClient
+                .from('tasks')
+                .update({ 
                     name: name, 
-                    due_date: dueDate || null, 
-                    user_id: userId 
-                }
-            ])
-            .select();
+                    due_date: dueDate || null 
+                })
+                .eq('id', id);
+            if (error) throw error;
+        } else {
+            // Mode Creació
+            const { error } = await supabaseClient
+                .from('tasks')
+                .insert([
+                    { 
+                        name: name, 
+                        due_date: dueDate || null, 
+                        user_id: userId 
+                    }
+                ]);
+            if (error) throw error;
+        }
 
-        if (taskError) throw taskError;
-
-        // Tancar modal i netejar
-        personalTaskModal.style.display = 'none';
-        personalTaskNameInput.value = '';
-        personalTaskDateInput.value = '';
-
-        // Recarregar la pàgina per veure la nova tasca
+        taskModal.style.display = 'none';
         window.location.reload();
     } catch (error) {
         console.error(error);
-        alert("Error creant la tasca personal: " + error.message);
+        alert("Error guardant la tasca: " + error.message);
     }
 }
+

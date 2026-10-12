@@ -44,20 +44,21 @@
             <div id="tasks-container" class="tasks-grid"></div>
         </div>
 
-        <!-- Modal per a Tasques Personals -->
-        <div id="personal-task-modal" class="modal" style="display: none;">
+        <!-- Modal per a Tasques Personals / Edició -->
+        <div id="task-modal" class="modal" style="display: none;">
             <div class="modal-content">
-                <h2>Nou Tasca Personal</h2>
+                <h2 id="modal-title">Nova Tasca Personal</h2>
+                <input type="hidden" id="task-id">
                 <div class="input-group">
                     <label>Nom de la tasca</label>
-                    <input type="text" id="personal-task-name" placeholder="Ex: Estudiar JavaScript">
+                    <input type="text" id="task-name" placeholder="Ex: Estudiar JavaScript">
                 </div>
                 <div class="input-group">
                     <label>Data de venciment</label>
-                    <input type="datetime-local" id="personal-task-date">
+                    <input type="datetime-local" id="task-date">
                 </div>
                 <div class="modal-buttons">
-                    <button id="save-personal-task-btn">Guardar</button>
+                    <button id="save-task-btn">Guardar</button>
                     <button id="close-modal-btn" class="btn-secondary">Cancel·lar</button>
                 </div>
             </div>
