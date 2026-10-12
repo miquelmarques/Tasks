@@ -1,43 +1,28 @@
 const SUPABASE_URL = '__SUPABASE_URL__';
 const SUPABASE_KEY = '__SUPABASE_KEY__';
 
-// Comprovació que no conté el placeholder literal (sed el reemplaçaria també aquí)
 const configOk = SUPABASE_URL.startsWith('http') && !SUPABASE_KEY.startsWith('__');
 if (!configOk) {
-    console.error("❌ ERROR: Les variables de Supabase no s'han injectat. Si estàs provant la web localment, recorda que has de posar les claus manualment o desplegar a GitHub Pages.");
-}
-
-if (typeof supabase === 'undefined') {
-    console.error("❌ ERROR: La llibreria supabase-js no s'ha carregat abans de script.js.");
+    console.error("❌ ERROR: Les variables de Supabase no s'han injectat.");
 }
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Elements
 let authSection, mainSection, emailInput, passwordInput, loginBtn, signupBtn, logoutBtn, userEmailSpan, tasksContainer;
-let addPersonalTaskBtn, taskModal, taskNameInput, taskDateInput, saveTaskBtn, closeModalBtn, taskIdInput, taskColorInput;
+let addPersonalTaskBtn, taskModal, taskNameInput, taskDateInput, taskLinkInput, saveTaskBtn, closeModalBtn, taskIdInput, taskColorInput;
 let currentUserId = null;
 let isAdminUser = false;
 
-// ---------- Utilitats ----------
-
 function escapeHtml(str) {
-    return String(str ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// Converteix una data a format "YYYY-MM-DDTHH:mm" en hora LOCAL (per a <input type="datetime-local">)
 function toLocalInputValue(date) {
+    if (!date) return '';
     const d = new Date(date);
     const offsetMs = d.getTimezoneOffset() * 60000;
     return new Date(d.getTime() - offsetMs).toISOString().slice(0, 16);
 }
-
-// ---------- Inici ----------
 
 document.addEventListener('DOMContentLoaded', () => {
     authSection = document.getElementById('auth-section');
@@ -49,11 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
     logoutBtn = document.getElementById('logout-btn');
     userEmailSpan = document.getElementById('user-email');
     tasksContainer = document.getElementById('tasks-container');
-
     addPersonalTaskBtn = document.getElementById('add-personal-task-btn');
     taskModal = document.getElementById('task-modal');
     taskNameInput = document.getElementById('task-name');
     taskDateInput = document.getElementById('task-date');
+    taskLinkInput = document.getElementById('task-link');
     saveTaskBtn = document.getElementById('save-task-btn');
     closeModalBtn = document.getElementById('close-modal-btn');
     taskIdInput = document.getElementById('task-id');
@@ -67,15 +52,12 @@ document.addEventListener('DOMContentLoaded', () => {
         addPersonalTaskBtn.addEventListener('click', () => openTaskModal());
     }
     if (closeModalBtn && taskModal) {
-        closeModalBtn.addEventListener('click', () => {
-            taskModal.style.display = 'none';
-        });
+        closeModalBtn.addEventListener('click', () => { taskModal.style.display = 'none'; });
     }
     if (saveTaskBtn) {
         saveTaskBtn.addEventListener('click', handleSaveTask);
     }
 
-    // Lògica de selecció de color
     document.querySelectorAll('.color-option').forEach(option => {
         option.addEventListener('click', () => {
             document.querySelectorAll('.color-option').forEach(opt => opt.style.borderColor = 'transparent');
@@ -87,46 +69,23 @@ document.addEventListener('DOMContentLoaded', () => {
     checkUser();
 });
 
-// ---------- Autenticació ----------
-
 async function handleSignUp() {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
-
-    if (!email || !password) {
-        alert("Si us plau, omple tots els camps.");
-        return;
-    }
-
+    if (!email || !password) { alert("Omple tots els camps."); return; }
     const { data, error } = await supabaseClient.auth.signUp({ email, password });
-
-    if (error) {
-        console.error("Error de registre:", error);
-        alert("Error: " + error.message);
-    } else if (data.session) {
-        alert("Compte creat amb èxit! Ja pots accedir.");
-        checkUser();
-    } else {
-        alert("Compte creat! Revisa el teu correu per confirmar.");
-    }
+    if (error) alert(error.message);
+    else if (data.session) { alert("Compte creat!"); checkUser(); }
+    else { alert("Revisa el correu per confirmar."); }
 }
 
 async function handleLogin() {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
-
-    if (!email || !password) {
-        alert("Si us plau, omple tots els camps.");
-        return;
-    }
-
+    if (!email || !password) { alert("Omple tots els camps."); return; }
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) {
-        console.error("Error d'inici de sessió:", error);
-        alert(error.message);
-    } else {
-        checkUser();
-    }
+    if (error) alert(error.message);
+    else checkUser();
 }
 
 async function handleLogout() {
@@ -155,29 +114,21 @@ async function checkAdminStatus() {
     try {
         const { data: isAdmin, error } = await supabaseClient.rpc('check_if_admin');
         if (error) throw error;
-
         isAdminUser = (isAdmin === true);
-
         if (isAdminUser) {
             const userBar = document.querySelector('.user-bar');
             if (!userBar || document.getElementById('admin-link')) return;
-
             const adminBtn = document.createElement('a');
             adminBtn.id = 'admin-link';
             adminBtn.href = 'admin.html';
             adminBtn.textContent = '➕ Afegeix una tasca';
             adminBtn.className = 'btn-admin';
-
             const logout = document.getElementById('logout-btn');
             if (logout && logout.parentNode === userBar) userBar.insertBefore(adminBtn, logout);
             else userBar.appendChild(adminBtn);
         }
-    } catch (e) {
-        console.warn("Admin check failed", e);
-    }
+    } catch (e) { console.warn("Admin check failed", e); }
 }
-
-// ---------- Dades ----------
 
 async function loadAppData(userId) {
     try {
@@ -186,49 +137,31 @@ async function loadAppData(userId) {
             .select('*')
             .or(`user_id.eq.${userId},user_id.is.null`)
             .order('due_date', { ascending: true });
-
         if (taskError) throw taskError;
-
         const { data: progress, error: progError } = await supabaseClient
             .from('user_tasks')
             .select('*')
             .eq('user_id', userId);
-
         if (progError) throw progError;
-
         renderTasks(tasks || [], progress || []);
     } catch (error) {
         console.error(error);
-        alert("Error carregant les dades: " + (error.message || error));
+        alert("Error carregant dades.");
     }
 }
 
 function renderTasks(tasks, progress) {
     tasksContainer.innerHTML = "";
     if (!tasks || tasks.length === 0) {
-        tasksContainer.innerHTML = `
-            <div class="empty-state" style="text-align: center; padding: 20px; color: #64748b;">
-                <p>No hi ha tasques assignades per al curs. L'administrador ha de crear-ne.</p>
-            </div>`;
+        tasksContainer.innerHTML = '<div class="empty-state" style="text-align:center; padding:20px; color:#64748b;">No hi ha tasques.</div>';
         return;
     }
-
     const now = new Date();
-
     const filteredTasks = tasks.filter(task => {
         if (!task.due_date) return true;
-        const dueDate = new Date(task.due_date);
-        const diffDays = (dueDate - now) / (1000 * 60 * 60 * 24);
+        const diffDays = (new Date(task.due_date) - now) / (1000 * 60 * 60 * 24);
         return diffDays >= -7;
     });
-
-    if (filteredTasks.length === 0) {
-        tasksContainer.innerHTML = `
-            <div class="empty-state" style="text-align: center; padding: 20px; color: #64748b;">
-                <p>No hi ha tasques actives en aquest moment.</p>
-            </div>`;
-        return;
-    }
 
     const categories = {
         overdue: { title: "🔴 Vencudes / Urgents", tasks: [] },
@@ -240,21 +173,14 @@ function renderTasks(tasks, progress) {
     filteredTasks.forEach(task => {
         const userProgress = progress.find(p => p.task_id === task.id);
         const isChecked = userProgress ? userProgress.completed : false;
-
-        if (isChecked) {
-            categories.completed.tasks.push(task);
-        } else if (!task.due_date) {
-            categories.noDate.tasks.push(task);
-        } else if (new Date(task.due_date) < now) {
-            categories.overdue.tasks.push(task);
-        } else {
-            categories.upcoming.tasks.push(task);
-        }
+        if (isChecked) categories.completed.tasks.push(task);
+        else if (!task.due_date) categories.noDate.tasks.push(task);
+        else if (new Date(task.due_date) < now) categories.overdue.tasks.push(task);
+        else categories.upcoming.tasks.push(task);
     });
 
     Object.values(categories).forEach(cat => {
         if (cat.tasks.length === 0) return;
-
         const sectionTitle = document.createElement('h3');
         sectionTitle.textContent = cat.title;
         sectionTitle.style.cssText = "font-size: 1.1rem; margin: 25px 0 10px 0; color: var(--text-main); font-weight: 700; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;";
@@ -263,24 +189,18 @@ function renderTasks(tasks, progress) {
         cat.tasks.forEach(task => {
             const userProgress = progress.find(p => p.task_id === task.id);
             const isChecked = userProgress ? userProgress.completed : false;
-            
-            // CORRECCIÓ: Prioritat al color personal, si no, al color global, si no, null
             const personalColor = (userProgress && userProgress.color) ? userProgress.color : task.color;
+            const personalLink = (userProgress && userProgress.personal_link_url) ? userProgress.personal_link_url : task.link_url;
 
             let dateHtml = '';
             if (task.due_date) {
                 const dueDate = new Date(task.due_date);
                 const diffDays = (dueDate - now) / (1000 * 60 * 60 * 24);
-                const dateString = dueDate.toLocaleString('ca-ES', {
-                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                });
+                const dateString = dueDate.toLocaleString('ca-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
                 let color = isChecked ? 'var(--text-muted)' : 'var(--danger)';
                 let weight = isChecked ? '400' : '700';
                 let prefix = '📅 Data de venciment: ';
-                if (!isChecked && diffDays > 0 && diffDays <= 1) {
-                    color = '#f59e0b';
-                    prefix = '⚠️ AVÍS! Venciment: ';
-                }
+                if (!isChecked && diffDays > 0 && diffDays <= 1) { color = '#f59e0b'; prefix = '⚠️ AVÍS! Venciment: '; }
                 dateHtml = `<span style="color: ${color}; font-weight: ${weight}; font-size: 0.75rem; display: block; margin-top: 4px;">${prefix}${dateString}</span>`;
             } else {
                 dateHtml = `<span style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 4px;">📅 Sense data límit</span>`;
@@ -292,19 +212,20 @@ function renderTasks(tasks, progress) {
                 div.style.backgroundColor = '#fee2e2';
                 div.style.borderColor = 'var(--danger)';
             }
-
-            if (personalColor) {
-                div.style.borderLeft = `6px solid ${personalColor}`;
-            }
+            if (personalColor) div.style.borderLeft = `6px solid ${personalColor}`;
             
             const canEditFull = isAdminUser || task.user_id === currentUserId;
             const editBtnHtml = `<button class="edit-task-btn" style="margin-left: auto; padding: 2px 8px; font-size: 0.7rem; cursor: pointer; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px;">✏️ Personalitzar</button>`;
+            const linkBtnHtml = personalLink ? `<a href="${personalLink}" target="_blank" style="margin-left: 10px; text-decoration: none; font-size: 1.2rem;" title="Obrir enllaç">🔗</a>` : '';
 
             div.innerHTML = `
                 <div class="task-main" style="display: flex; align-items: flex-start; width: 100%;">
                     <input type="checkbox" ${isChecked ? 'checked' : ''} data-task-id="${escapeHtml(task.id)}">
                     <div style="display: flex; flex-direction: column; flex: 1; margin-left: 10px;">
-                        <span style="font-weight: 600;">${escapeHtml(task.name)}</span>
+                        <div style="display: flex; align-items: center;">
+                            <span style="font-weight: 600;">${escapeHtml(task.name)}</span>
+                            ${linkBtnHtml}
+                        </div>
                         ${dateHtml}
                     </div>
                     ${editBtnHtml}
@@ -316,7 +237,7 @@ function renderTasks(tasks, progress) {
             });
 
             div.querySelector('.edit-task-btn').addEventListener('click', () => {
-                openTaskModal(task.id, task.name, task.due_date, personalColor, canEditFull);
+                openTaskModal(task.id, task.name, task.due_date, personalColor, canEditFull, personalLink);
             });
             tasksContainer.appendChild(div);
         });
@@ -326,8 +247,7 @@ function renderTasks(tasks, progress) {
 async function toggleTask(taskId, completed, docUrl = null) {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) throw new Error("Sessió caducada. Torna a iniciar sessió.");
-
+        if (!session) throw new Error("Sessió caducada.");
         const { error } = await supabaseClient
             .from('user_tasks')
             .upsert({
@@ -337,22 +257,20 @@ async function toggleTask(taskId, completed, docUrl = null) {
                 document_url: completed ? docUrl : null,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'user_id,task_id' });
-
         if (error) throw error;
         await loadAppData(session.user.id);
     } catch (error) {
         console.error(error);
-        alert("Error actualitzant la tasca: " + (error.message || error));
+        alert("Error actualitzant la tasca.");
         if (currentUserId) await loadAppData(currentUserId);
     }
 }
 
-// ---------- Modal de tasques ----------
-
-function openTaskModal(id = null, name = '', date = '', color = '', canEditFull = false) {
+function openTaskModal(id = null, name = '', date = '', color = '', canEditFull = false, link = '') {
     taskIdInput.value = id || '';
     taskNameInput.value = name;
     taskDateInput.value = date ? toLocalInputValue(date) : '';
+    taskLinkInput.value = link || '';
 
     taskColorInput.value = color || '';
     document.querySelectorAll('.color-option').forEach(option => {
@@ -367,7 +285,6 @@ function openTaskModal(id = null, name = '', date = '', color = '', canEditFull 
     } else {
         document.getElementById('modal-title').textContent = id ? 'Editar Tasca' : 'Nova Tasca Personal';
     }
-    
     taskModal.style.display = 'flex';
 }
 
@@ -376,30 +293,26 @@ async function handleSaveTask() {
     const name = taskNameInput.value.trim();
     const dueDate = taskDateInput.value;
     const color = taskColorInput.value;
+    const linkUrl = taskLinkInput.value.trim();
 
-    if (!name) {
-        alert("Si us plau, introdueix un nom per a la tasca.");
-        return;
-    }
+    if (!name) { alert("Introdueix un nom."); return; }
 
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) throw new Error("Sessió caducada. Torna a iniciar sessió.");
-
+        if (!session) throw new Error("Sessió caducada.");
         const dueDateIso = dueDate ? new Date(dueDate).toISOString() : null;
 
         if (id) {
-            // 1. SEMPRE actualitzem el color personal a la taula 'user_tasks'
             const { error: colorError } = await supabaseClient
                 .from('user_tasks')
                 .upsert({
                     user_id: session.user.id,
                     task_id: parseInt(id, 10),
-                    color: color
+                    color: color,
+                    personal_link_url: linkUrl
                 }, { onConflict: 'user_id,task_id' });
             if (colorError) throw colorError;
 
-            // 2. Actualitzem nom i data NOMÉS si és l'admin o el propietari
             const canEditFull = isAdminUser || (await checkTaskOwnership(id));
             if (canEditFull) {
                 const { error: taskError } = await supabaseClient
@@ -412,20 +325,19 @@ async function handleSaveTask() {
             const { data: newTask, error: insertError } = await supabaseClient
                 .from('tasks')
                 .insert([{ name, due_date: dueDateIso, user_id: session.user.id }])
-                .select()
-                .single();
+                .select().single();
             if (insertError) throw insertError;
 
             const { error: progressError } = await supabaseClient
                 .from('user_tasks')
-                .insert([{ user_id: session.user.id, task_id: newTask.id, color }]);
+                .insert([{ user_id: session.user.id, task_id: newTask.id, color, personal_link_url: linkUrl }]);
             if (progressError) throw progressError;
         }
 
         taskModal.style.display = 'none';
         await loadAppData(session.user.id);
     } catch (error) {
-        console.error("Error guardant la tasca:", error);
+        console.error(error);
         alert("Error guardant la tasca: " + (error.message || error));
     }
 }

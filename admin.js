@@ -9,6 +9,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const newTaskNameInput = document.getElementById('new-task-name');
 const newTaskDateInput = document.getElementById('new-task-date');
+const newTaskLinkInput = document.getElementById('new-task-link');
 const addTaskBtn = document.getElementById('add-task-btn');
 const adminTasksContainer = document.getElementById('admin-tasks-container');
 const csvFileInput = document.getElementById('csv-file');
@@ -19,6 +20,7 @@ const adminTaskModal = document.getElementById('admin-task-modal');
 const adminTaskIdInput = document.getElementById('admin-task-id');
 const adminTaskNameInput = document.getElementById('admin-task-name');
 const adminTaskDateInput = document.getElementById('admin-task-date');
+const adminTaskLinkInput = document.getElementById('admin-task-link');
 const adminSaveTaskBtn = document.getElementById('admin-save-task-btn');
 const adminCloseModalBtn = document.getElementById('admin-close-modal-btn');
 
@@ -90,17 +92,17 @@ function renderAdminTasks(tasks) {
 
 async function addTask() {
     const name = newTaskNameInput.value.trim();
-    const dueDate = newTaskDateInput.value; // Tomamos el valor directo del input (YYYY-MM-DDTHH:mm)
+    const dueDate = newTaskDateInput.value;
+    const linkUrl = newTaskLinkInput.value.trim();
 
     if (!name || !dueDate) {
         alert("Si us plau, ompliu tant el nom com la data de la tasca.");
         return;
     }
 
-    // Enviamos la fecha tal cual viene del input, Supabase/Postgres lo entiende perfectamente
     const { error } = await supabaseClient
         .from('tasks')
-        .insert([{ name, due_date: dueDate }]);
+        .insert([{ name, due_date: dueDate, link_url: linkUrl }]);
 
     if (error) {
         console.error("Error detallat:", error);
@@ -108,6 +110,7 @@ async function addTask() {
     } else {
         newTaskNameInput.value = "";
         newTaskDateInput.value = "";
+        newTaskLinkInput.value = "";
         loadAdminTasks();
     }
 }
