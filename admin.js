@@ -191,21 +191,27 @@ async function saveAdminTask() {
     const name = adminTaskNameInput.value.trim();
     const dueDate = adminTaskDateInput.value;
 
+    console.log("Admin intentant guardar tasca:", { id, name, dueDate });
+
     if (!name) {
         alert("El nom de la tasca és obligatori.");
         return;
     }
 
-    const { error } = await supabaseClient
-        .from('tasks')
-        .update({ name, due_date: dueDate || null })
-        .eq('id', id);
+    try {
+        const { error } = await supabaseClient
+            .from('tasks')
+            .update({ name, due_date: dueDate || null })
+            .eq('id', parseInt(id)); // Assegurar que l'ID és un número
 
-    if (error) {
-        alert("Error actualitzant la tasca: " + error.message);
-    } else {
+        if (error) throw error;
+
+        console.log("Tasca admin actualitzada correctament!");
         adminTaskModal.style.display = 'none';
         loadAdminTasks();
+    } catch (error) {
+        console.error("Error detallat admin:", error);
+        alert("Error actualitzant la tasca: " + error.message);
     }
 }
 

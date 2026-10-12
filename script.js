@@ -302,25 +302,38 @@ function renderTasks(tasks, progress) {
             const div = document.createElement('div');
             div.className = 'task-item';
 
-            // Fons vermell si està vencuda i no completada
             if (!isChecked && task.due_date && new Date(task.due_date) < now) {
                 div.style.backgroundColor = '#fee2e2';
                 div.style.borderColor = 'var(--danger)';
             }
 
+            if (task.color) {
+                div.style.borderLeft = `6px solid ${task.color}`;
+            }
+
+            const canEdit = isAdminUser || task.user_id === currentUserId;
+            const editBtnHtml = canEdit ? `<button class="edit-task-btn" style="margin-left: auto; padding: 2px 8px; font-size: 0.7rem; cursor: pointer; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px;">✏️ Edit</button>` : '';
+
             div.innerHTML = `
-                <div class="task-main">
+                <div class="task-main" style="display: flex; align-items: flex-start; width: 100%;">
                     <input type="checkbox" ${isChecked ? 'checked' : ''} data-task-id="${escapeHtml(task.id)}">
-                    <div style="display: flex; flex-direction: column;">
+                    <div style="display: flex; flex-direction: column; flex: 1; margin-left: 10px;">
                         <span style="font-weight: 600;">${escapeHtml(task.name)}</span>
                         ${dateHtml}
                     </div>
+                    ${editBtnHtml}
                 </div>
             `;
 
             div.querySelector('input').addEventListener('change', async (e) => {
                 await toggleTask(e.target.dataset.taskId, e.target.checked);
             });
+
+            if (canEdit) {
+                div.querySelector('.edit-task-btn').addEventListener('click', () => {
+                    openTaskModal(task.id, task.name, task.due_date, task.color);
+                });
+            }
             tasksContainer.appendChild(div);
         });
     });
