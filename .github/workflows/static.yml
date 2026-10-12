@@ -1,28 +1,20 @@
-# Simple workflow for deploying static content to GitHub Pages
 name: Deploy static content to Pages
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
   deploy:
     environment:
       name: github-pages
@@ -31,21 +23,41 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
+      - name: Build site folder
+        run: |
+          mkdir dist
+          rsync -a \
+            --exclude='.git' --exclude='.github' --exclude='dist' \
+            --exclude='*.md' --exclude='*.sql' \
+            ./ dist/
+
       - name: Inject Configuration
         env:
           S_URL: ${{ vars.SUPABASE_URL }}
           S_KEY: ${{ vars.SUPABASE_KEY }}
         run: |
-          sed -i "s|__SUPABASE_URL__|${S_URL}|g" script.js
-          sed -i "s|__SUPABASE_KEY__|${S_KEY}|g" script.js
-          sed -i "s|__SUPABASE_URL__|${S_URL}|g" admin.js
-          sed -i "s|__SUPABASE_KEY__|${S_KEY}|g" admin.js
+          if [ -z "$S_URL" ] || [ -z "$S_KEY" ]; then
+            echo "::error::SUPABASE_URL or SUPABASE_KEY is not set (Settings > Secrets and variables > Actions > Variables)"
+            exit 1
+          fi
+          for f in dist/script.js dist/admin.js; do
+            sed -i "s#__SUPABASE_URL__#${S_URL}#g" "$f"
+            sed -i "s#__SUPABASE_KEY__#${S_KEY}#g" "$f"
+            if grep -q "__SUPABASE_" "$f"; then
+              echo "::error::Placeholder still present in $f"
+              exit 1
+            fi
+          done
+
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
-          path: '.'
+          path: 'dist'
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
