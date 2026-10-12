@@ -216,7 +216,6 @@ function renderTasks(tasks, progress) {
 
     const now = new Date();
 
-    // 1. Les tasques desapareixen 7 dies després de la data de venciment
     const filteredTasks = tasks.filter(task => {
         if (!task.due_date) return true;
         const dueDate = new Date(task.due_date);
@@ -232,7 +231,6 @@ function renderTasks(tasks, progress) {
         return;
     }
 
-    // 2. Classificar per categories
     const categories = {
         overdue: { title: "🔴 Vencudes / Urgents", tasks: [] },
         upcoming: { title: "📅 Pròximes", tasks: [] },
@@ -255,7 +253,6 @@ function renderTasks(tasks, progress) {
         }
     });
 
-    // 3. Renderitzar cada categoria
     Object.values(categories).forEach(cat => {
         if (cat.tasks.length === 0) return;
 
@@ -267,52 +264,40 @@ function renderTasks(tasks, progress) {
         cat.tasks.forEach(task => {
             const userProgress = progress.find(p => p.task_id === task.id);
             const isChecked = userProgress ? userProgress.completed : false;
+            const personalColor = userProgress ? userProgress.color : task.color;
 
             let dateHtml = '';
             if (task.due_date) {
                 const dueDate = new Date(task.due_date);
                 const diffDays = (dueDate - now) / (1000 * 60 * 60 * 24);
-
                 const dateString = dueDate.toLocaleString('ca-ES', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
+                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                 });
-
                 let color = isChecked ? 'var(--text-muted)' : 'var(--danger)';
                 let weight = isChecked ? '400' : '700';
                 let prefix = '📅 Data de venciment: ';
-
                 if (!isChecked && diffDays > 0 && diffDays <= 1) {
                     color = '#f59e0b';
                     prefix = '⚠️ AVÍS! Venciment: ';
                 }
-
-                dateHtml = `<span style="color: ${color}; font-weight: ${weight}; font-size: 0.75rem; display: block; margin-top: 4px;">
-                                ${prefix}${dateString}
-                            </span>`;
+                dateHtml = `<span style="color: ${color}; font-weight: ${weight}; font-size: 0.75rem; display: block; margin-top: 4px;">${prefix}${dateString}</span>`;
             } else {
-                dateHtml = `<span style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 4px;">
-                                📅 Sense data límit
-                            </span>`;
+                dateHtml = `<span style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 4px;">📅 Sense data límit</span>`;
             }
 
             const div = document.createElement('div');
             div.className = 'task-item';
-
             if (!isChecked && task.due_date && new Date(task.due_date) < now) {
                 div.style.backgroundColor = '#fee2e2';
                 div.style.borderColor = 'var(--danger)';
             }
 
-            if (task.color) {
-                div.style.borderLeft = `6px solid ${task.color}`;
+            if (personalColor) {
+                div.style.borderLeft = `6px solid ${personalColor}`;
             }
-
-            const canEdit = isAdminUser || task.user_id === currentUserId;
-            const editBtnHtml = canEdit ? `<button class="edit-task-btn" style="margin-left: auto; padding: 2px 8px; font-size: 0.7rem; cursor: pointer; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px;">✏️ Edit</button>` : '';
+            
+            const canEditFull = isAdminUser || task.user_id === currentUserId;
+            const editBtnHtml = `<button class="edit-task-btn" style="margin-left: auto; padding: 2px 8px; font-size: 0.7rem; cursor: pointer; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px;">✏️ Personalitzar</button>`;
 
             div.innerHTML = `
                 <div class="task-main" style="display: flex; align-items: flex-start; width: 100%;">
@@ -329,11 +314,9 @@ function renderTasks(tasks, progress) {
                 await toggleTask(e.target.dataset.taskId, e.target.checked);
             });
 
-            if (canEdit) {
-                div.querySelector('.edit-task-btn').addEventListener('click', () => {
-                    openTaskModal(task.id, task.name, task.due_date, task.color);
-                });
-            }
+            div.querySelector('.edit-task-btn').addEventListener('click', () => {
+                openTaskModal(task.id, task.name, task.due_date, personalColor, canEditFull);
+            });
             tasksContainer.appendChild(div);
         });
     });
