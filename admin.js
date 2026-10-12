@@ -1,6 +1,10 @@
 const SUPABASE_URL = '__SUPABASE_URL__';
 const SUPABASE_KEY = '__SUPABASE_KEY__';
 
+if (SUPABASE_URL === '__SUPABASE_URL__' || SUPABASE_KEY === '__SUPABASE_KEY__') {
+    console.error("❌ ERROR: Les variables de Supabase no s'han injectat. Si estàs provant la web localment, recorda que has de posar les claus manualment o desplegar a GitHub Pages.");
+}
+
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const newTaskNameInput = document.getElementById('new-task-name');
