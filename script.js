@@ -181,7 +181,6 @@ async function checkAdminStatus() {
 
 async function loadAppData(userId) {
     try {
-        // Tasques globals (user_id null) i tasques personals de l'usuari
         const { data: tasks, error: taskError } = await supabaseClient
             .from('tasks')
             .select('*')
@@ -264,7 +263,9 @@ function renderTasks(tasks, progress) {
         cat.tasks.forEach(task => {
             const userProgress = progress.find(p => p.task_id === task.id);
             const isChecked = userProgress ? userProgress.completed : false;
-            const personalColor = userProgress ? userProgress.color : task.color;
+            
+            // CORRECCIÓ: Prioritat al color personal, si no, al color global, si no, null
+            const personalColor = (userProgress && userProgress.color) ? userProgress.color : task.color;
 
             let dateHtml = '';
             if (task.due_date) {
@@ -327,7 +328,6 @@ async function toggleTask(taskId, completed, docUrl = null) {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) throw new Error("Sessió caducada. Torna a iniciar sessió.");
 
-        // Requereix una restricció UNIQUE (user_id, task_id) a la taula user_tasks
         const { error } = await supabaseClient
             .from('user_tasks')
             .upsert({
@@ -349,7 +349,7 @@ async function toggleTask(taskId, completed, docUrl = null) {
 
 // ---------- Modal de tasques ----------
 
-function openTaskModal(id = null, name = '', date = '', color = '') {
+function openTaskModal(id = null, name = '', date = '', color = '', canEditFull = false) {
     taskIdInput.value = id || '';
     taskNameInput.value = name;
     taskDateInput.value = date ? toLocalInputValue(date) : '';
@@ -359,7 +359,15 @@ function openTaskModal(id = null, name = '', date = '', color = '') {
         option.style.borderColor = (option.dataset.color === color) ? '#000' : 'transparent';
     });
 
-    document.getElementById('modal-title').textContent = id ? 'Editar Tasca' : 'Nova Tasca Personal';
+    taskNameInput.disabled = !canEditFull;
+    taskDateInput.disabled = !canEditFull;
+    
+    if (!canEditFull) {
+        document.getElementById('modal-title').textContent = 'Personalitzar la teva tasca';
+    } else {
+        document.getElementById('modal-title').textContent = id ? 'Editar Tasca' : 'Nova Tasca Personal';
+    }
+    
     taskModal.style.display = 'flex';
 }
 
@@ -378,26 +386,56 @@ async function handleSaveTask() {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) throw new Error("Sessió caducada. Torna a iniciar sessió.");
 
-        // datetime-local no porta zona horària: es converteix a ISO (UTC) abans de guardar
         const dueDateIso = dueDate ? new Date(dueDate).toISOString() : null;
 
         if (id) {
-            const { error } = await supabaseClient
-                .from('tasks')
-                .update({ name, due_date: dueDateIso, color })
-                .eq('id', id);
-            if (error) throw error;
+            // 1. SEMPRE actualitzem el color personal a la taula 'user_tasks'
+            const { error: colorError } = await supabaseClient
+                .from('user_tasks')
+                .upsert({
+                    user_id: session.user.id,
+                    task_id: parseInt(id, 10),
+                    color: color
+                }, { onConflict: 'user_id,task_id' });
+            if (colorError) throw colorError;
+
+            // 2. Actualitzem nom i data NOMÉS si és l'admin o el propietari
+            const canEditFull = isAdminUser || (await checkTaskOwnership(id));
+            if (canEditFull) {
+                const { error: taskError } = await supabaseClient
+                    .from('tasks')
+                    .update({ name, due_date: dueDateIso })
+                    .eq('id', id);
+                if (taskError) throw taskError;
+            }
         } else {
-            const { error } = await supabaseClient
+            const { data: newTask, error: insertError } = await supabaseClient
                 .from('tasks')
-                .insert([{ name, due_date: dueDateIso, user_id: session.user.id, color }]);
-            if (error) throw error;
+                .insert([{ name, due_date: dueDateIso, user_id: session.user.id }])
+                .select()
+                .single();
+            if (insertError) throw insertError;
+
+            const { error: progressError } = await supabaseClient
+                .from('user_tasks')
+                .insert([{ user_id: session.user.id, task_id: newTask.id, color }]);
+            if (progressError) throw progressError;
         }
 
         taskModal.style.display = 'none';
         await loadAppData(session.user.id);
     } catch (error) {
-        console.error(error);
+        console.error("Error guardant la tasca:", error);
         alert("Error guardant la tasca: " + (error.message || error));
     }
+}
+
+async function checkTaskOwnership(taskId) {
+    const { data, error } = await supabaseClient
+        .from('tasks')
+        .select('user_id')
+        .eq('id', taskId)
+        .single();
+    if (error) return false;
+    return data.user_id === currentUserId;
 }
