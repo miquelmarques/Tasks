@@ -35,10 +35,10 @@ jobs:
         uses: actions/configure-pages@v5
       - name: Inject Configuration
         run: |
-          sed -i "s/__SUPABASE_URL__/${{ vars.SUPABASE_URL }}/g" script.js
-          sed -i "s/__SUPABASE_KEY__/${{ vars.SUPABASE_KEY }}/g" script.js
-          sed -i "s/__SUPABASE_URL__/${{ vars.SUPABASE_URL }}/g" admin.js
-          sed -i "s/__SUPABASE_KEY__/${{ vars.SUPABASE_KEY }}/g" admin.js
+          sed -i "s|__SUPABASE_URL__|${{ vars.SUPABASE_URL }}|g" script.js
+          sed -i "s|__SUPABASE_KEY__|${{ vars.SUPABASE_KEY }}|g" script.js
+          sed -i "s|__SUPABASE_URL__|${{ vars.SUPABASE_URL }}|g" admin.js
+          sed -i "s|__SUPABASE_KEY__|${{ vars.SUPABASE_KEY }}|g" admin.js
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
