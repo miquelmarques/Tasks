@@ -44,7 +44,7 @@ jobs:
             echo "::error::SUPABASE_URL or SUPABASE_KEY is not set (Settings > Secrets and variables > Actions > Variables)"
             exit 1
           fi
-          for f in dist/script.js dist/admin.js dist/calendar.js; do
+          for f in dist/script.js dist/admin.js; do
             sed -i "s#__SUPABASE_URL__#${S_URL}#g" "$f"
             sed -i "s#__SUPABASE_KEY__#${S_KEY}#g" "$f"
             if grep -q "__SUPABASE_" "$f"; then
