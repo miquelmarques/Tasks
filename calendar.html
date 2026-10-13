@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendari de Tasques | ASIX2A</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+</head>
+<body>
+    <div class="background-blob"></div>
+    <div class="container">
+        <header>
+            <h1>Calendari de Tasques</h1>
+            <p class="subtitle">Organitza el teu curs per dates</p>
+        </header>
+        <div id="auth-section" class="auth-card" style="display:none;">
+            <p style="text-align:center;">Inicia sessio per veure el calendari.</p>
+            <a href="index.html" style="display:block;text-align:center;color:var(--primary);font-weight:600;">Anar a l'inici</a>
+        </div>
+        <div id="main-section" style="display:none;">
+            <div class="user-bar">
+                <span id="user-email"></span>
+                <div style="display:flex;gap:10px;">
+                    <a href="index.html" style="padding:8px 15px;font-size:0.8rem;background:#e2e8f0;border-radius:6px;text-decoration:none;color:var(--text-main);">Llista</a>
+                    <button id="logout-btn" class="btn-logout">Sortir</button>
+                </div>
+            </div>
+            <div id="calendar" style="margin-top:20px;background:#fff;border-radius:12px;padding:10px;box-shadow:var(--shadow);"></div>
+        </div>
+        <div id="task-modal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <h2 id="modal-title">Personalitzar tasca</h2>
+                <input type="hidden" id="task-id">
+                <div class="input-group"><label>Nom de la tasca</label><input type="text" id="task-name"></div>
+                <div class="input-group"><label>Data de venciment</label><input type="datetime-local" id="task-date"></div>
+                <div class="input-group"><label>Enllac (URL)</label><input type="url" id="task-link" placeholder="https://..."></div>
+                <div class="input-group"><label>Color</label>
+                    <div id="color-selector" style="display:flex;gap:10px;margin-top:5px;">
+                        <div class="color-option" data-color="#3b82f6" style="width:25px;height:25px;border-radius:50%;background:#3b82f6;cursor:pointer;border:2px solid transparent;"></div>
+                        <div class="color-option" data-color="#22c55e" style="width:25px;height:25px;border-radius:50%;background:#22c55e;cursor:pointer;border:2px solid transparent;"></div>
+                        <div class="color-option" data-color="#eab308" style="width:25px;height:25px;border-radius:50%;background:#eab308;cursor:pointer;border:2px solid transparent;"></div>
+                        <div class="color-option" data-color="#ef4444" style="width:25px;height:25px;border-radius:50%;background:#ef4444;cursor:pointer;border:2px solid transparent;"></div>
+                        <div class="color-option" data-color="#a855f7" style="width:25px;height:25px;border-radius:50%;background:#a855f7;cursor:pointer;border:2px solid transparent;"></div>
+                        <div class="color-option" data-color="#64748b" style="width:25px;height:25px;border-radius:50%;background:#64748b;cursor:pointer;border:2px solid transparent;"></div>
+                        <div class="color-option" data-color="" style="width:25px;height:25px;border-radius:50%;background:#fff;cursor:pointer;border:2px solid #ddd;"></div>
+                    </div>
+                    <input type="hidden" id="task-color">
+                </div>
+                <div class="modal-buttons">
+                    <button id="save-task-btn">Guardar</button>
+                    <button id="close-modal-btn" class="btn-secondary">Cancel·lar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="calendar.js"></script>
+</body>
+</html>
