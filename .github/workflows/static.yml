@@ -53,6 +53,11 @@ jobs:
             fi
           done
 
+      - name: Prepare /dev/ folder
+        run: |
+          mkdir -p dist/dev
+          rsync -a --exclude='dev' dist/ dist/dev/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
