@@ -1,0 +1,68 @@
+name: Deploy static content to Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Build site folder
+        run: |
+          mkdir dist
+          rsync -a \
+            --exclude='.git' --exclude='.github' --exclude='dist' \
+            --exclude='*.md' --exclude='*.sql' \
+            ./ dist/
+
+      - name: Inject Configuration
+        env:
+          S_URL: ${{ vars.SUPABASE_URL }}
+          S_KEY: ${{ vars.SUPABASE_KEY }}
+        run: |
+          if [ -z "$S_URL" ] || [ -z "$S_KEY" ]; then
+            echo "::error::SUPABASE_URL or SUPABASE_KEY is not set (Settings > Secrets and variables > Actions > Variables)"
+            exit 1
+          fi
+          for f in dist/script.js dist/admin.js dist/calendar.js; do
+            sed -i "s#__SUPABASE_URL__#${S_URL}#g" "$f"
+            sed -i "s#__SUPABASE_KEY__#${S_KEY}#g" "$f"
+            if grep -q "__SUPABASE_" "$f"; then
+              echo "::error::Placeholder still present in $f"
+              exit 1
+            fi
+          done
+
+      - name: Prepare /dev/ folder
+        run: |
+          mkdir -p dist/dev
+          rsync -a --exclude='dev' dist/ dist/dev/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: 'dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
