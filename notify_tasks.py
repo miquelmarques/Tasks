@@ -5,7 +5,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from supabase import create_client, Client
 
-# --- CONFIGURACIÓN DESDE VARIABLES DE ENTORNO (GITHUB SECRETS) ---
+# --- CONFIGURACIÓN DESDE VARIABLES DE ENTORNO ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 SMTP_USER = os.environ.get("SMTP_USER")
@@ -13,13 +13,10 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
 SMTP_SERVER = os.environ.get("SMTP_SERVER")
 SMTP_PORT = os.environ.get("SMTP_PORT", "587")
 
-# Inicializar cliente de Supabase
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 def send_email(to_email, task_name, days_left):
-    """Envía un correo electrónico de notificación."""
     subject = f"⚠️ Recordatorio de Tarea: {task_name}"
-    
     if days_left == 7:
         body = f"Hola,\n\nTe recordamos que la tarea '{task_name}' vence en una semana (7 días).\n\n¡Mantente al día!"
     elif days_left == 1:
@@ -44,11 +41,7 @@ def send_email(to_email, task_name, days_left):
         print(f"❌ Error enviando email a {to_email}: {e}")
 
 def check_and_notify():
-    """Revisa tareas pendientes y envía alertas."""
-    # Usamos UTC para consistencia con la base de datos
     today = datetime.utcnow().date()
-    
-    # Definimos las fechas objetivo (7 días y 1 día)
     target_dates = [
         (today + timedelta(days=7), 7),
         (today + timedelta(days=1), 1)
@@ -57,26 +50,27 @@ def check_and_notify():
     print(f"Fecha actual (UTC): {today}")
 
     for target_date, days_diff in target_dates:
-        date_str = target_date.isoformat()
-        print(f"Buscando tareas que vencen el {date_str}...")
+        # Definimos el rango del día: desde las 00:00:00 hasta las 23:59:59
+        start_of_day = datetime.combine(target_date, datetime.min.time()).isoformat() + "Z"
+        end_of_day = datetime.combine(target_date, datetime.max.time()).isoformat() + "Z"
+        
+        print(f"Buscando tareas entre {start_of_day} y {end_of_day}...")
 
-        # 1. Buscar tareas que vencen en esa fecha exacta
-        # Nota: Filtramos por el inicio del día (due_date comienza por la fecha)
+        # FILTRO CORREGIDO: Usamos .gte (Mayor o igual) y .lte (Menor o igual)
         tasks_response = supabase.table("tasks") \
             .select("id, name, due_date, user_id") \
-            .ilike("due_date", f"{date_str}%") \
+            .gte("due_date", start_of_day) \
+            .lte("due_date", end_of_day) \
             .execute()
 
         tasks = tasks_response.data
 
         if not tasks:
-            print(f"No hay tareas para el {date_str}.")
+            print(f"No hay tareas para el {target_date}.")
             continue
 
         for task in tasks:
             task_id = task['id']
-            
-            # 2. Verificar si el usuario ya completó la tarea en 'user_tasks'
             progress_response = supabase.table("user_tasks") \
                 .select("completed, user_id") \
                 .eq("task_id", task_id) \
@@ -84,12 +78,8 @@ def check_and_notify():
             
             user_progress = progress_response.data[0] if progress_response.data else None
 
-            # Si no hay registro de progreso o no está completada, enviamos alerta
             if not user_progress or not user_progress.get('completed'):
-                # 3. Obtener el email del usuario desde Auth (requiere Service Role Key)
-                # Prioridad: user_id de la tarea -> user_id del progreso
                 uid = task.get('user_id') or (user_progress.get('user_id') if user_progress else None)
-                
                 if uid:
                     try:
                         user_auth = supabase.auth.admin.get_user_by_id(uid)
@@ -98,8 +88,6 @@ def check_and_notify():
                             send_email(email, task['name'], days_diff)
                     except Exception as e:
                         print(f"❌ Error obteniendo usuario {uid}: {e}")
-                else:
-                    print(f"⚠️ No se encontró user_id para la tarea {task['name']}")
 
 if __name__ == "__main__":
     if not all([SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SMTP_USER, SMTP_PASSWORD]):
