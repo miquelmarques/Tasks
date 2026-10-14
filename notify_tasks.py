@@ -15,7 +15,6 @@ SMTP_PORT = os.environ.get("SMTP_PORT", "587")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 def send_email(to_email, task_name, days_left):
-    # Personalización del mensaje según el estado
     if days_left < 0:
         subject = f"🚨 TAREA VENCIDA: {task_name}"
         body = f"Hola,\n\nLa tarea '{task_name}' ya ha vencido (hace {abs(days_left)} días).\n\nPor favor, gestiónala lo antes posible."
@@ -60,14 +59,15 @@ def check_and_notify():
         task_date = datetime.strptime(task['due_date'][:10], "%Y-%m-%d").date()
         days_diff = (task_date - today).days
         
-        # NUEVA LÓGICA: 7 días o menos, incluyendo las vencidas (negativas)
         if days_diff <= 7:
             print(f"🎯 Alerta disparada: {task['name']} (Días: {days_diff})")
             
             users_to_notify = []
+            # 1. Dueño directo de la tarea
             if task.get('user_id'):
                 users_to_notify.append(task['user_id'])
             
+            # 2. Usuarios que tienen la tarea asignada/en progreso
             progress_data = supabase.table("user_tasks") \
                 .select("user_id, completed") \
                 .eq("task_id", task['id']) \
@@ -78,8 +78,20 @@ def check_and_notify():
                     if p.get('user_id') not in users_to_notify:
                         users_to_notify.append(p['user_id'])
 
+            # 3. NUEVO: Si la tarea es GLOBAL (sin dueño) y nadie la ha empezado,
+            # notificamos a TODOS los usuarios registrados en la plataforma.
+            if not task.get('user_id') and not users_to_notify:
+                print(f"🌍 Tarea global detectada. Notificando a todos los usuarios...")
+                try:
+                    # Obtenemos la lista de todos los usuarios desde Auth
+                    all_users_response = supabase.auth.admin.list_users()
+                    for u in all_users_response.users:
+                        users_to_notify.append(u.id)
+                except Exception as e:
+                    print(f"❌ Error obteniendo lista global de usuarios: {e}")
+
             if not users_to_notify:
-                print(f"⚠️ Sin usuarios asignados para {task['name']}")
+                print(f"⚠️ No hay ningún usuario registrado en el sistema para notificar.")
             
             for uid in users_to_notify:
                 try:
@@ -87,8 +99,6 @@ def check_and_notify():
                     email = user_auth.user.email
                     if email:
                         send_email(email, task['name'], days_diff)
-                    else:
-                        print(f"❌ Usuario {uid} no tiene email.")
                 except Exception as e:
                     print(f"❌ Error obteniendo email del usuario {uid}: {e}")
         else:
