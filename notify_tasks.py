@@ -1,98 +1,74 @@
 import os
 import smtplib
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from supabase import create_client, Client
+from supabase import create_client
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-SMTP_USER = os.environ.get("SMTP_USER")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
-SMTP_SERVER = os.environ.get("SMTP_SERVER")
-SMTP_PORT = os.environ.get("SMTP_PORT", "587")
+supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+SMTP_USER = os.environ["SMTP_USER"]
+SMTP_PASSWORD = os.environ["SMTP_PASSWORD"]
+SMTP_SERVER = os.environ["SMTP_SERVER"]
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+ALERT_DAYS = {7, 3, 1, 0, -1}   # días en los que se avisa
+_email_cache = {}
 
-def send_email(to_email, task_name, days_left):
-    # Personalización del mensaje según el estado
+def get_email(uid):
+    if uid not in _email_cache:
+        try:
+            _email_cache[uid] = supabase.auth.admin.get_user_by_id(uid).user.email
+        except Exception as e:
+            print(f"❌ No se pudo obtener el email de {uid}: {e}")
+            _email_cache[uid] = None
+    return _email_cache[uid]
+
+def build_message(to_email, task_name, days_left):
     if days_left < 0:
         subject = f"🚨 TAREA VENCIDA: {task_name}"
-        body = f"Hola,\n\nLa tarea '{task_name}' ya ha vencido (hace {abs(days_left)} días).\n\nPor favor, gestiónala lo antes posible."
+        body = f"La tarea '{task_name}' venció hace {abs(days_left)} día(s)."
     elif days_left == 0:
         subject = f"⚠️ VENCE HOY: {task_name}"
-        body = f"Hola,\n\nLa tarea '{task_name}' vence HOY mismo.\n\n¡No olvides completarla!"
+        body = f"La tarea '{task_name}' vence hoy."
     else:
-        subject = f"📅 Recordatorio de Tarea: {task_name}"
-        body = f"Hola,\n\nTe recordamos que la tarea '{task_name}' vence en {days_left} días."
+        subject = f"📅 Recordatorio: {task_name}"
+        body = f"La tarea '{task_name}' vence en {days_left} día(s)."
+    msg = MIMEText(f"Hola,\n\n{body}", "plain", "utf-8")
+    msg["From"], msg["To"], msg["Subject"] = SMTP_USER, to_email, subject
+    return msg
 
-    msg = MIMEMultipart()
-    msg['From'] = SMTP_USER
-    msg['To'] = to_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
+def get_recipients(task):
+    progress = supabase.table("user_tasks").select("user_id, completed") \
+        .eq("task_id", task["id"]).execute().data
+    completed = {p["user_id"] for p in progress if p.get("completed")}
+    pending = {p["user_id"] for p in progress if not p.get("completed")}
 
-    try:
-        server = smtplib.SMTP(SMTP_SERVER, int(SMTP_PORT))
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        print(f"✅ Email enviado a {to_email} ({days_left} días: {task_name})")
-    except Exception as e:
-        print(f"❌ Error enviando email a {to_email}: {e}")
+    if task.get("user_id"):                       # tarea con dueño
+        recipients = ({task["user_id"]} | pending) - completed
+    else:                                         # tarea global
+        all_users = supabase.auth.admin.list_users()
+        all_ids = {u.id for u in all_users.users}  # ojo: paginado
+        recipients = all_ids - completed
+    return recipients
 
 def check_and_notify():
-    today = datetime.utcnow().date()
-    print(f"--- INICIO DE PROCESO - Fecha actual: {today} ---")
+    today = datetime.now(timezone.utc).date()
+    tasks = supabase.table("tasks").select("id, name, due_date, user_id").execute().data
 
-    print("🔍 Analizando tareas pendientes y vencidas...")
-    all_tasks = supabase.table("tasks").select("id, name, due_date, user_id").execute().data
-    
-    if not all_tasks:
-        print("❌ No se encontró NINGUNA tarea en la tabla 'tasks'.")
-        return
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:   # una sola conexión
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
 
-    for task in all_tasks:
-        if not task.get('due_date'):
-            continue
-            
-        task_date = datetime.strptime(task['due_date'][:10], "%Y-%m-%d").date()
-        days_diff = (task_date - today).days
-        
-        # NUEVA LÓGICA: 7 días o menos, incluyendo las vencidas (negativas)
-        if days_diff <= 7:
-            print(f"🎯 Alerta disparada: {task['name']} (Días: {days_diff})")
-            
-            users_to_notify = []
-            if task.get('user_id'):
-                users_to_notify.append(task['user_id'])
-            
-            progress_data = supabase.table("user_tasks") \
-                .select("user_id, completed") \
-                .eq("task_id", task['id']) \
-                .execute().data
-            
-            for p in progress_data:
-                if not p.get('completed'):
-                    if p.get('user_id') not in users_to_notify:
-                        users_to_notify.append(p['user_id'])
-
-            if not users_to_notify:
-                print(f"⚠️ Sin usuarios asignados para {task['name']}")
-            
-            for uid in users_to_notify:
-                try:
-                    user_auth = supabase.auth.admin.get_user_by_id(uid)
-                    email = user_auth.user.email
-                    if email:
-                        send_email(email, task['name'], days_diff)
-                    else:
-                        print(f"❌ Usuario {uid} no tiene email.")
-                except Exception as e:
-                    print(f"❌ Error obteniendo email del usuario {uid}: {e}")
-        else:
-            print(f"ℹ️ Ignorando: {task['name']} (Vence en {days_diff} días)")
+        for task in tasks or []:
+            if not task.get("due_date"):
+                continue
+            days = (datetime.strptime(task["due_date"][:10], "%Y-%m-%d").date() - today).days
+            if days not in ALERT_DAYS:
+                continue
+            for uid in get_recipients(task):
+                email = get_email(uid)
+                if email:
+                    server.send_message(build_message(email, task["name"], days))
+                    print(f"✅ {email}: {task['name']} ({days} días)")
 
 if __name__ == "__main__":
     check_and_notify()
