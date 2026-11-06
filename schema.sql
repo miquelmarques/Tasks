@@ -123,17 +123,37 @@ CREATE TABLE IF NOT EXISTS task_label_assignments (
 );
 
 -- ────────────────────────────────────────────────────────────
--- 6. FUNCIÓ RPC: check_if_admin
+-- 6. FUNCIONS D'AJUDA (SECURITY DEFINER per evitar recursió RLS)
 -- ────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.check_if_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
     RETURN EXISTS (
-        SELECT 1 FROM profiles
+        SELECT 1 FROM public.profiles
         WHERE id = auth.uid() AND is_admin = TRUE
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+CREATE OR REPLACE FUNCTION public.is_group_member(p_group_id INT, p_user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.task_group_members
+        WHERE group_id = p_group_id AND user_id = p_user_id
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+CREATE OR REPLACE FUNCTION public.is_group_admin(p_group_id INT, p_user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.task_group_members
+        WHERE group_id = p_group_id AND user_id = p_user_id AND is_admin = TRUE
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
 -- ────────────────────────────────────────────────────────────
 -- 7. ROW LEVEL SECURITY (RLS)
@@ -146,9 +166,7 @@ CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.ui
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 DROP POLICY IF EXISTS "Admins can view all profiles" ON profiles;
-CREATE POLICY "Admins can view all profiles" ON profiles FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
-);
+CREATE POLICY "Admins can view all profiles" ON profiles FOR SELECT USING (public.check_if_admin());
 
 -- tasks
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
@@ -156,37 +174,25 @@ DROP POLICY IF EXISTS "View tasks" ON tasks;
 CREATE POLICY "View tasks" ON tasks FOR SELECT USING (
     task_type = 'global'
     OR (task_type = 'personal' AND user_id = auth.uid())
-    OR (task_type = 'group' AND EXISTS (
-        SELECT 1 FROM task_group_members
-        WHERE group_id = tasks.group_id AND user_id = auth.uid()
-    ))
+    OR (task_type = 'group' AND public.is_group_member(group_id, auth.uid()))
 );
 DROP POLICY IF EXISTS "Admin insert global tasks" ON tasks;
 CREATE POLICY "Admin insert global tasks" ON tasks FOR INSERT WITH CHECK (
-    (task_type = 'global' AND EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE))
+    (task_type = 'global' AND public.check_if_admin())
     OR (task_type = 'personal' AND user_id = auth.uid())
-    OR (task_type = 'group' AND EXISTS (
-        SELECT 1 FROM task_group_members
-        WHERE group_id = tasks.group_id AND user_id = auth.uid() AND is_admin = TRUE
-    ))
+    OR (task_type = 'group' AND (public.is_group_admin(group_id, auth.uid()) OR public.check_if_admin()))
 );
 DROP POLICY IF EXISTS "Update tasks" ON tasks;
 CREATE POLICY "Update tasks" ON tasks FOR UPDATE USING (
-    (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE))
+    public.check_if_admin()
     OR (task_type = 'personal' AND user_id = auth.uid())
-    OR (task_type = 'group' AND EXISTS (
-        SELECT 1 FROM task_group_members
-        WHERE group_id = tasks.group_id AND user_id = auth.uid() AND is_admin = TRUE
-    ))
+    OR (task_type = 'group' AND (public.is_group_admin(group_id, auth.uid()) OR public.check_if_admin()))
 );
 DROP POLICY IF EXISTS "Delete tasks" ON tasks;
 CREATE POLICY "Delete tasks" ON tasks FOR DELETE USING (
-    (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE))
+    public.check_if_admin()
     OR (task_type = 'personal' AND user_id = auth.uid())
-    OR (task_type = 'group' AND EXISTS (
-        SELECT 1 FROM task_group_members
-        WHERE group_id = tasks.group_id AND user_id = auth.uid() AND is_admin = TRUE
-    ))
+    OR (task_type = 'group' AND (public.is_group_admin(group_id, auth.uid()) OR public.check_if_admin()))
 );
 
 -- user_tasks
@@ -198,45 +204,45 @@ CREATE POLICY "Users manage own progress" ON user_tasks FOR ALL USING (user_id =
 ALTER TABLE task_groups ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "View groups user belongs to" ON task_groups;
 CREATE POLICY "View groups user belongs to" ON task_groups FOR SELECT USING (
-    EXISTS (SELECT 1 FROM task_group_members WHERE group_id = task_groups.id AND user_id = auth.uid())
-    OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
+    public.is_group_member(id, auth.uid())
+    OR public.check_if_admin()
 );
 DROP POLICY IF EXISTS "Admin create groups" ON task_groups;
 CREATE POLICY "Admin create groups" ON task_groups FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
+    public.check_if_admin()
 );
 DROP POLICY IF EXISTS "Admin update groups" ON task_groups;
 CREATE POLICY "Admin update groups" ON task_groups FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
+    public.check_if_admin()
     OR created_by = auth.uid()
 );
 DROP POLICY IF EXISTS "Admin delete groups" ON task_groups;
 CREATE POLICY "Admin delete groups" ON task_groups FOR DELETE USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
+    public.check_if_admin()
 );
 
 -- task_group_members
 ALTER TABLE task_group_members ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "View group members" ON task_group_members;
 CREATE POLICY "View group members" ON task_group_members FOR SELECT USING (
-    EXISTS (SELECT 1 FROM task_group_members tgm WHERE tgm.group_id = task_group_members.group_id AND tgm.user_id = auth.uid())
-    OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
+    user_id = auth.uid()
+    OR public.is_group_member(group_id, auth.uid())
+    OR public.check_if_admin()
 );
 DROP POLICY IF EXISTS "Manage group members" ON task_group_members;
 CREATE POLICY "Manage group members" ON task_group_members FOR INSERT WITH CHECK (
-    EXISTS (
-        SELECT 1 FROM task_group_members tgm
-        WHERE tgm.group_id = task_group_members.group_id AND tgm.user_id = auth.uid() AND tgm.is_admin = TRUE
-    )
-    OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
+    public.is_group_admin(group_id, auth.uid())
+    OR public.check_if_admin()
+);
+DROP POLICY IF EXISTS "Update group members" ON task_group_members;
+CREATE POLICY "Update group members" ON task_group_members FOR UPDATE USING (
+    public.is_group_admin(group_id, auth.uid())
+    OR public.check_if_admin()
 );
 DROP POLICY IF EXISTS "Remove group members" ON task_group_members;
 CREATE POLICY "Remove group members" ON task_group_members FOR DELETE USING (
-    EXISTS (
-        SELECT 1 FROM task_group_members tgm
-        WHERE tgm.group_id = task_group_members.group_id AND tgm.user_id = auth.uid() AND tgm.is_admin = TRUE
-    )
-    OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
+    public.is_group_admin(group_id, auth.uid())
+    OR public.check_if_admin()
 );
 
 -- task_labels
