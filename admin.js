@@ -335,10 +335,9 @@ function populateGroupSelects() {
 async function loadUsers() {
     const { data: profiles, error } = await supabaseClient
         .from('profiles')
-        .select('id, email, display_name')
-        .order('email');
+        .select('*');
 
-    if (error) { console.error(error); return; }
+    if (error) { console.error("Error carregant perfils:", error); return; }
     cachedUsers = profiles || [];
 }
 
@@ -396,12 +395,17 @@ async function createGroup() {
     const desc = newGroupDescInput.value.trim();
     if (!name) { alert("Introdueix un nom per al grup."); return; }
 
-    const { error } = await supabaseClient
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const userId = session?.user?.id || currentAdminUserId;
+
+    const { data, error } = await supabaseClient
         .from('task_groups')
-        .insert([{ name, description: desc, created_by: currentAdminUserId }]);
+        .insert([{ name, description: desc, created_by: userId }])
+        .select();
 
     if (error) {
-        alert("Error creant el grup: " + error.message);
+        console.error("Error detallat creant grup:", error);
+        alert("Error creant el grup: " + (error.message || error.details || JSON.stringify(error)));
     } else {
         newGroupNameInput.value = '';
         newGroupDescInput.value = '';
@@ -426,7 +430,8 @@ function openAddMemberModal(groupId) {
     cachedUsers.forEach(u => {
         const opt = document.createElement('option');
         opt.value = u.id;
-        opt.textContent = `${u.email}${u.display_name ? ` (${u.display_name})` : ''}`;
+        const label = u.display_name ? `${u.email || u.id} (${u.display_name})` : (u.email || u.id);
+        opt.textContent = label;
         memberUserSelect.appendChild(opt);
     });
     memberIsAdminCheckbox.checked = false;

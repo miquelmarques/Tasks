@@ -14,6 +14,17 @@ CREATE TABLE IF NOT EXISTS profiles (
     created_at  TIMESTAMPTZ DEFAULT now()
 );
 
+-- Si la taula profiles ja existia sense aquestes columnes:
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='email') THEN
+        ALTER TABLE profiles ADD COLUMN email TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='display_name') THEN
+        ALTER TABLE profiles ADD COLUMN display_name TEXT;
+    END IF;
+END $$;
+
 -- Trigger per crear perfil automàticament en registrar-se
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
@@ -224,7 +235,7 @@ CREATE POLICY "View groups user belongs to" ON task_groups FOR SELECT USING (
 );
 DROP POLICY IF EXISTS "Admin create groups" ON task_groups;
 CREATE POLICY "Admin create groups" ON task_groups FOR INSERT WITH CHECK (
-    public.check_if_admin()
+    auth.uid() IS NOT NULL
 );
 DROP POLICY IF EXISTS "Admin update groups" ON task_groups;
 CREATE POLICY "Admin update groups" ON task_groups FOR UPDATE USING (
@@ -234,7 +245,18 @@ CREATE POLICY "Admin update groups" ON task_groups FOR UPDATE USING (
 DROP POLICY IF EXISTS "Admin delete groups" ON task_groups;
 CREATE POLICY "Admin delete groups" ON task_groups FOR DELETE USING (
     public.check_if_admin()
+    OR created_by = auth.uid()
 );
+
+-- Permisos (GRANTs) necessaris per a usuaris autenticats
+GRANT ALL ON TABLE public.task_groups TO authenticated;
+GRANT ALL ON TABLE public.task_group_members TO authenticated;
+GRANT ALL ON TABLE public.task_labels TO authenticated;
+GRANT ALL ON TABLE public.task_label_assignments TO authenticated;
+GRANT ALL ON TABLE public.tasks TO authenticated;
+GRANT ALL ON TABLE public.user_tasks TO authenticated;
+GRANT ALL ON TABLE public.profiles TO authenticated;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 
 -- task_group_members
 ALTER TABLE task_group_members ENABLE ROW LEVEL SECURITY;
