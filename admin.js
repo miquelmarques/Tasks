@@ -46,6 +46,8 @@ const saveMemberBtn = document.getElementById('save-member-btn');
 const closeMemberModalBtn = document.getElementById('close-member-modal-btn');
 
 let currentAdminUserId = null;
+let isGlobalAdmin = false;
+let myAdminGroupIds = [];
 let cachedGroups = [];
 let cachedUsers = [];
 
@@ -73,17 +75,45 @@ window.onload = async () => {
     currentAdminUserId = session.user.id;
     document.getElementById('admin-user-email').textContent = session.user.email;
 
-    // Verify admin
+    // Verify admin: Global Admin or Group Admin
     const { data: profile } = await supabaseClient
         .from('profiles')
         .select('is_admin')
         .eq('id', session.user.id)
         .single();
 
-    if (!profile || !profile.is_admin) {
-        alert("No tens permisos d'administrador.");
+    isGlobalAdmin = (profile && profile.is_admin === true);
+
+    const { data: adminMemberships } = await supabaseClient
+        .from('task_group_members')
+        .select('group_id')
+        .eq('user_id', session.user.id)
+        .eq('is_admin', true);
+
+    myAdminGroupIds = (adminMemberships || []).map(m => m.group_id);
+    const isGroupAdmin = myAdminGroupIds.length > 0;
+
+    if (!isGlobalAdmin && !isGroupAdmin) {
+        alert("No tens permisos d'administrador ni gestor de grup.");
         window.location.href = 'index.html';
         return;
+    }
+
+    // Configurar opcions segons permisos
+    if (!isGlobalAdmin) {
+        newTaskTypeSelect.innerHTML = `
+            <option value="group">👥 Grupal (per al teu grup)</option>
+            <option value="personal">👤 Personal</option>
+        `;
+        groupSelectGroup.style.display = 'flex';
+        const createGroupCard = document.getElementById('create-group-card');
+        if (createGroupCard) createGroupCard.style.display = 'none';
+    } else {
+        newTaskTypeSelect.innerHTML = `
+            <option value="global">🌍 Global (per a tota la classe)</option>
+            <option value="group">👥 Grupal (per a un grup concret)</option>
+            <option value="personal">👤 Personal</option>
+        `;
     }
 
     // Tab switcher
@@ -136,7 +166,11 @@ async function loadAdminTasks() {
         console.error(error);
         return;
     }
-    renderAdminTasks(tasks || []);
+    let filtered = tasks || [];
+    if (!isGlobalAdmin) {
+        filtered = filtered.filter(t => myAdminGroupIds.includes(t.group_id) || t.user_id === currentAdminUserId);
+    }
+    renderAdminTasks(filtered);
 }
 
 function renderAdminTasks(tasks) {
@@ -327,7 +361,11 @@ async function loadGroups() {
 }
 
 function populateGroupSelects() {
-    const opts = cachedGroups.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
+    const visibleGroups = isGlobalAdmin 
+        ? cachedGroups 
+        : cachedGroups.filter(g => myAdminGroupIds.includes(g.id));
+
+    const opts = visibleGroups.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
     newTaskGroupSelect.innerHTML = '<option value="">— Selecciona un grup —</option>' + opts;
     adminTaskGroupSelect.innerHTML = '<option value="">— Selecciona un grup —</option>' + opts;
 }
@@ -343,12 +381,16 @@ async function loadUsers() {
 
 function renderGroups() {
     groupsList.innerHTML = '';
-    if (cachedGroups.length === 0) {
-        groupsList.innerHTML = '<div class="empty-state">No hi ha grups creats. Crea un grup per assignar tasques grupals.</div>';
+    const visibleGroups = isGlobalAdmin 
+        ? cachedGroups 
+        : cachedGroups.filter(g => myAdminGroupIds.includes(g.id));
+
+    if (visibleGroups.length === 0) {
+        groupsList.innerHTML = '<div class="empty-state">No tens grups assignats per administrar.</div>';
         return;
     }
 
-    cachedGroups.forEach(grp => {
+    visibleGroups.forEach(grp => {
         const card = document.createElement('div');
         card.className = 'group-card';
 
@@ -365,12 +407,16 @@ function renderGroups() {
             `;
         }).join('');
 
+        const deleteBtnHtml = isGlobalAdmin 
+            ? `<button class="btn-delete-group" style="padding:4px 10px;font-size:0.75rem;background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);box-shadow:none;" data-group-id="${grp.id}">🗑️</button>` 
+            : '';
+
         card.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:center;">
                 <h4>📂 ${escapeHtml(grp.name)}</h4>
                 <div style="display:flex;gap:6px;">
                     <button class="btn-add-member" style="padding:4px 10px;font-size:0.75rem;" data-group-id="${grp.id}">➕ Afegir Membre</button>
-                    <button class="btn-delete-group" style="padding:4px 10px;font-size:0.75rem;background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);box-shadow:none;" data-group-id="${grp.id}">🗑️</button>
+                    ${deleteBtnHtml}
                 </div>
             </div>
             ${grp.description ? `<p style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">${escapeHtml(grp.description)}</p>` : ''}
@@ -381,7 +427,9 @@ function renderGroups() {
         `;
 
         card.querySelector('.btn-add-member').addEventListener('click', () => openAddMemberModal(grp.id));
-        card.querySelector('.btn-delete-group').addEventListener('click', () => deleteGroup(grp.id));
+        if (isGlobalAdmin && card.querySelector('.btn-delete-group')) {
+            card.querySelector('.btn-delete-group').addEventListener('click', () => deleteGroup(grp.id));
+        }
         card.querySelectorAll('.remove-member').forEach(rm => {
             rm.addEventListener('click', () => removeMember(rm.dataset.memberId));
         });

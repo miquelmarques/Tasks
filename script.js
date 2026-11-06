@@ -15,6 +15,8 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // ── State ───────────────────────────────────────────────
 let currentUserId = null;
 let isAdminUser = false;
+let isGlobalAdmin = false;
+let myAdminGroupIds = [];
 let currentFilter = 'all';     // 'all' | 'global' | 'group' | 'personal'
 let currentLabelFilter = null; // label id or null
 let allTasks = [];
@@ -166,9 +168,20 @@ async function checkUser() {
 
 async function checkAdminStatus() {
     try {
-        const { data: isAdmin, error } = await supabaseClient.rpc('check_if_admin');
-        if (error) throw error;
-        isAdminUser = (isAdmin === true);
+        const { data: isAdmin } = await supabaseClient.rpc('check_if_admin');
+        isGlobalAdmin = (isAdmin === true);
+
+        // Comprovar si l'usuari és administrador d'algun grup
+        const { data: adminMemberships } = await supabaseClient
+            .from('task_group_members')
+            .select('group_id')
+            .eq('user_id', currentUserId)
+            .eq('is_admin', true);
+
+        myAdminGroupIds = (adminMemberships || []).map(m => m.group_id);
+        const isGroupAdmin = myAdminGroupIds.length > 0;
+        isAdminUser = isGlobalAdmin || isGroupAdmin;
+
         if (isAdminUser) {
             const navLinks = document.querySelector('.nav-links');
             if (!navLinks || document.getElementById('admin-link')) return;
@@ -350,7 +363,8 @@ function renderTasks() {
             }
             if (personalColor) div.style.borderLeft = `5px solid ${personalColor}`;
 
-            const canEditFull = isAdminUser || task.user_id === currentUserId;
+            const isGroupTaskAdmin = task.task_type === 'group' && myAdminGroupIds.includes(task.group_id);
+            const canEditFull = isGlobalAdmin || task.user_id === currentUserId || isGroupTaskAdmin;
 
             div.innerHTML = `
                 <div class="task-main">
@@ -415,6 +429,23 @@ function openTaskModal(id = null, name = '', date = '', color = '', canEditFull 
     taskLinkInput.value = link || '';
     taskColorInput.value = color || '';
 
+    // Selector de destinació (Personal o Grups on l'usuari és admin)
+    const destGroup = document.getElementById('task-dest-group');
+    const destSelect = document.getElementById('task-destination');
+    if (destGroup && destSelect) {
+        if (!id && myAdminGroupIds.length > 0) {
+            destSelect.innerHTML = '<option value="personal">👤 Tasca Personal (només per a tu)</option>';
+            myAdminGroupIds.forEach(gid => {
+                const grp = allGroups.find(g => g.id === gid);
+                const gname = grp ? grp.name : `Grup #${gid}`;
+                destSelect.innerHTML += `<option value="group_${gid}">👥 Grupal: ${escapeHtml(gname)}</option>`;
+            });
+            destGroup.style.display = 'flex';
+        } else {
+            destGroup.style.display = 'none';
+        }
+    }
+
     document.querySelectorAll('#color-selector .color-option').forEach(o => {
         o.classList.toggle('selected', o.dataset.color === (color || ''));
     });
@@ -429,7 +460,7 @@ function openTaskModal(id = null, name = '', date = '', color = '', canEditFull 
     if (!canEditFull) {
         document.getElementById('modal-title').textContent = 'Personalitzar la teva tasca';
     } else {
-        document.getElementById('modal-title').textContent = id ? 'Editar Tasca' : 'Nova Tasca Personal';
+        document.getElementById('modal-title').textContent = id ? 'Editar Tasca' : 'Nova Tasca';
     }
     taskModal.style.display = 'flex';
 }
@@ -449,51 +480,85 @@ async function handleSaveTask() {
         if (!session) throw new Error("Sessió caducada.");
 
         if (id) {
-            // Update color/link personalization
-            const { error: colorError } = await supabaseClient
-                .from('user_tasks')
-                .upsert({
-                    user_id: session.user.id,
-                    task_id: parseInt(id, 10),
-                    color: color,
-                    personal_link_url: linkUrl
-                }, { onConflict: 'user_id,task_id' });
-            if (colorError) throw colorError;
-
-            const canEditFull = isAdminUser || (await checkTaskOwnership(id));
+            // Actualitzar a la taula tasks directament si es tenen permisos
+            const canEditFull = isGlobalAdmin || (await checkTaskOwnership(id)) || (await checkGroupTaskAdmin(id));
             if (canEditFull) {
                 const { error: taskError } = await supabaseClient
                     .from('tasks')
-                    .update({ name, due_date: dueDate || null })
-                    .eq('id', id);
+                    .update({
+                        name,
+                        due_date: dueDate || null,
+                        link_url: linkUrl || null,
+                        color: color || null
+                    })
+                    .eq('id', parseInt(id, 10));
                 if (taskError) throw taskError;
             }
+
+            // Intentar desar personalització a user_tasks de forma segura
+            try {
+                await supabaseClient
+                    .from('user_tasks')
+                    .upsert({
+                        user_id: session.user.id,
+                        task_id: parseInt(id, 10),
+                        color: color || null,
+                        personal_link_url: linkUrl || null
+                    }, { onConflict: 'user_id,task_id' });
+            } catch (err) {
+                console.warn("user_tasks actualització omesa:", err);
+            }
         } else {
-            // Create new personal task
+            // Detectar destinació (Personal o Grupal)
+            const destSelect = document.getElementById('task-destination');
+            let targetType = 'personal';
+            let targetGroupId = null;
+            if (destSelect && destSelect.value.startsWith('group_')) {
+                targetType = 'group';
+                targetGroupId = parseInt(destSelect.value.replace('group_', ''), 10);
+            }
+
+            const insertPayload = {
+                name,
+                due_date: dueDate || null,
+                user_id: session.user.id,
+                task_type: targetType,
+                group_id: targetGroupId,
+                link_url: linkUrl || null,
+                color: color || null
+            };
+
             const { data: newTask, error: insertError } = await supabaseClient
                 .from('tasks')
-                .insert([{ name, due_date: dueDate || null, user_id: session.user.id, task_type: 'personal' }])
+                .insert([insertPayload])
                 .select().single();
             if (insertError) throw insertError;
 
-            const { error: progressError } = await supabaseClient
-                .from('user_tasks')
-                .insert([{ user_id: session.user.id, task_id: newTask.id, color, personal_link_url: linkUrl }]);
-            if (progressError) throw progressError;
+            // Desar a user_tasks de forma resilient (no bloqueja si la columna personal_link_url no està creada)
+            try {
+                await supabaseClient
+                    .from('user_tasks')
+                    .insert([{
+                        user_id: session.user.id,
+                        task_id: newTask.id,
+                        color: color || null,
+                        personal_link_url: linkUrl || null
+                    }]);
+            } catch (err) {
+                console.warn("user_tasks inserció omesa:", err);
+            }
         }
 
         // Handle label assignment
         const taskIdNum = parseInt(id || '0', 10);
         if (taskIdNum || id) {
             const finalTaskId = taskIdNum || parseInt(id, 10);
-            // Remove old assignment for this task
             await supabaseClient
                 .from('task_label_assignments')
                 .delete()
                 .eq('task_id', finalTaskId)
                 .eq('user_id', session.user.id);
 
-            // Add new if selected
             if (labelId) {
                 await supabaseClient
                     .from('task_label_assignments')
@@ -507,6 +572,18 @@ async function handleSaveTask() {
         console.error(error);
         alert("Error guardant la tasca: " + (error.message || error));
     }
+}
+
+async function checkGroupTaskAdmin(taskId) {
+    const { data } = await supabaseClient
+        .from('tasks')
+        .select('task_type, group_id')
+        .eq('id', taskId)
+        .single();
+    if (data && data.task_type === 'group' && myAdminGroupIds.includes(data.group_id)) {
+        return true;
+    }
+    return false;
 }
 
 async function checkTaskOwnership(taskId) {

@@ -128,6 +128,17 @@ CREATE TABLE IF NOT EXISTS user_tasks (
     UNIQUE(user_id, task_id)
 );
 
+-- Si user_tasks ja existia sense personal_link_url o color:
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='user_tasks' AND column_name='personal_link_url') THEN
+        ALTER TABLE user_tasks ADD COLUMN personal_link_url TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='user_tasks' AND column_name='color') THEN
+        ALTER TABLE user_tasks ADD COLUMN color TEXT;
+    END IF;
+END $$;
+
 -- ────────────────────────────────────────────────────────────
 -- 5. ETIQUETES PERSONALS (per filtrar)
 -- ────────────────────────────────────────────────────────────

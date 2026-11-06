@@ -66,6 +66,12 @@
             <div class="modal-content">
                 <h2 id="modal-title">Nova Tasca Personal</h2>
                 <input type="hidden" id="task-id">
+                <div class="input-group" id="task-dest-group" style="display: none;">
+                    <label>Tipus / Destinació de la tasca</label>
+                    <select id="task-destination">
+                        <option value="personal">👤 Tasca Personal (només per a tu)</option>
+                    </select>
+                </div>
                 <div class="input-group">
                     <label>Nom de la tasca</label>
                     <input type="text" id="task-name" placeholder="Ex: Estudiar JavaScript">

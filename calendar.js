@@ -167,29 +167,46 @@ async function handleSaveTask() {
         if (!session) throw new Error('Sessió caducada.');
 
         if (id) {
-            await supabaseClient.from('user_tasks').upsert({
-                user_id: session.user.id,
-                task_id: parseInt(id, 10),
-                color,
-                personal_link_url: linkUrl
-            }, { onConflict: 'user_id,task_id' });
+            try {
+                await supabaseClient.from('user_tasks').upsert({
+                    user_id: session.user.id,
+                    task_id: parseInt(id, 10),
+                    color,
+                    personal_link_url: linkUrl
+                }, { onConflict: 'user_id,task_id' });
+            } catch (err) {}
 
             const canEditFull = isAdminUser || (await checkTaskOwnership(id));
             if (canEditFull) {
-                await supabaseClient.from('tasks').update({ name, due_date: dueDate || null }).eq('id', id);
+                await supabaseClient.from('tasks').update({
+                    name,
+                    due_date: dueDate || null,
+                    link_url: linkUrl || null,
+                    color: color || null
+                }).eq('id', id);
             }
         } else {
-            const { data: newTask } = await supabaseClient
+            const { data: newTask, error: insertErr } = await supabaseClient
                 .from('tasks')
-                .insert([{ name, due_date: dueDate || null, user_id: session.user.id, task_type: 'personal' }])
+                .insert([{
+                    name,
+                    due_date: dueDate || null,
+                    user_id: session.user.id,
+                    task_type: 'personal',
+                    link_url: linkUrl || null,
+                    color: color || null
+                }])
                 .select().single();
+            if (insertErr) throw insertErr;
 
-            await supabaseClient.from('user_tasks').insert([{
-                user_id: session.user.id,
-                task_id: newTask.id,
-                color,
-                personal_link_url: linkUrl
-            }]);
+            try {
+                await supabaseClient.from('user_tasks').insert([{
+                    user_id: session.user.id,
+                    task_id: newTask.id,
+                    color,
+                    personal_link_url: linkUrl
+                }]);
+            } catch (err) {}
         }
 
         document.getElementById('task-modal').style.display = 'none';
