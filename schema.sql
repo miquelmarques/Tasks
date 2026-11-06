@@ -44,11 +44,26 @@ CREATE TABLE IF NOT EXISTS task_groups (
 CREATE TABLE IF NOT EXISTS task_group_members (
     id          SERIAL PRIMARY KEY,
     group_id    INT NOT NULL REFERENCES task_groups(id) ON DELETE CASCADE,
-    user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id     UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     is_admin    BOOLEAN DEFAULT FALSE,
     joined_at   TIMESTAMPTZ DEFAULT now(),
     UNIQUE(group_id, user_id)
 );
+
+-- Assegurar foreign key cap a profiles si la taula ja existia
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'fk_task_group_members_profiles'
+    ) THEN
+        ALTER TABLE task_group_members
+        ADD CONSTRAINT fk_task_group_members_profiles
+        FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+    END IF;
+EXCEPTION
+    WHEN others THEN NULL;
+END $$;
 
 -- ────────────────────────────────────────────────────────────
 -- 3. TASQUES  (afegir camps nous: task_type, group_id)

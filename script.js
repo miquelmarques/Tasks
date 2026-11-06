@@ -185,12 +185,11 @@ async function checkAdminStatus() {
 // ── Data Loading ────────────────────────────────────────
 async function loadAppData() {
     try {
-        // Load tasks: globals + personals propias + grupales donde soy miembro
+        // Load tasks: RLS de PostgreSQL ja s'encarrega de filtrar segons permisos
         const { data: tasks, error: taskError } = await supabaseClient
             .from('tasks')
             .select('*')
-            .or(`task_type.eq.global,and(task_type.eq.personal,user_id.eq.${currentUserId}),task_type.eq.group`)
-            .order('due_date', { ascending: true, nullsFirst: false });
+            .order('due_date', { ascending: true });
         if (taskError) throw taskError;
 
         const { data: progress, error: progError } = await supabaseClient

@@ -58,7 +58,6 @@ async function loadAppData() {
     const { data: tasks } = await supabaseClient
         .from('tasks')
         .select('*')
-        .or(`task_type.eq.global,and(task_type.eq.personal,user_id.eq.${currentUserId}),task_type.eq.group`)
         .order('due_date', { ascending: true });
 
     const { data: progress } = await supabaseClient

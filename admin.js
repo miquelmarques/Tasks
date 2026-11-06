@@ -316,10 +316,10 @@ async function handleCSVUpload() {
 async function loadGroups() {
     const { data: groups, error } = await supabaseClient
         .from('task_groups')
-        .select('*, task_group_members(id, user_id, is_admin, profiles(email, display_name))')
+        .select('*, task_group_members(id, user_id, is_admin)')
         .order('id', { ascending: true });
 
-    if (error) { console.error(error); return; }
+    if (error) { console.error("Error carregant grups:", error); return; }
     cachedGroups = groups || [];
 
     // Populate group selects
@@ -355,7 +355,8 @@ function renderGroups() {
 
         const members = grp.task_group_members || [];
         const membersHtml = members.map(m => {
-            const email = (m.profiles && m.profiles.email) ? m.profiles.email : m.user_id.substring(0, 8);
+            const user = cachedUsers.find(u => u.id === m.user_id);
+            const email = user ? (user.email || user.display_name) : m.user_id.substring(0, 8);
             const adminBadge = m.is_admin ? '⭐ Admin' : '';
             return `
                 <span class="member-chip ${m.is_admin ? 'admin' : ''}">
