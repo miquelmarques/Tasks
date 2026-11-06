@@ -12,8 +12,8 @@
     <div class="background-blob"></div>
     <div class="container">
         <header>
-            <h1>⚙️ Panell d'Administració</h1>
-            <p class="subtitle">Gestiona tasques globals, grupals i grups d'alumnes</p>
+            <h1 id="admin-header-title">⚙️ Panell d'Administració</h1>
+            <p id="admin-header-subtitle" class="subtitle">Gestiona tasques globals, grupals i grups d'alumnes</p>
         </header>
 
         <!-- Navigation Tabs -->
@@ -27,14 +27,14 @@
 
         <!-- Section Switcher -->
         <div class="filter-bar" style="margin-bottom:20px;">
-            <div class="filter-tab active" data-tab="tasks-tab">📋 Tasques</div>
-            <div class="filter-tab" data-tab="groups-tab">👥 Gestió de Grups</div>
+            <div class="filter-tab active" data-tab="tasks-tab" id="tab-btn-tasks">📋 Tasques</div>
+            <div class="filter-tab" data-tab="groups-tab" id="tab-btn-groups">👥 Gestió de Grups</div>
         </div>
 
         <!-- ═══ TASKS TAB ═══════════════════════════════════ -->
         <div id="tasks-tab">
             <div class="auth-card">
-                <h3 style="font-size:1.1rem;margin-bottom:6px;">Afegir Nova Tasca</h3>
+                <h3 id="add-task-heading" style="font-size:1.1rem;margin-bottom:6px;">Afegir Nova Tasca</h3>
                 
                 <div class="input-group">
                     <label>Tipus de Tasca</label>
@@ -71,7 +71,7 @@
                 <button id="add-task-btn" style="margin-top:6px;">➕ Afegir Tasca</button>
 
                 <!-- CSV Upload -->
-                <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+                <div id="csv-upload-section" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
                     <label>Importació Massiva (CSV)</label>
                     <div style="display:flex;gap:10px;align-items:center;margin-top:8px;">
                         <input type="file" id="csv-file" accept=".csv" style="flex:1;font-size:0.8rem;">

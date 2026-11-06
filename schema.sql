@@ -203,7 +203,8 @@ CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.ui
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 DROP POLICY IF EXISTS "Admins can view all profiles" ON profiles;
-CREATE POLICY "Admins can view all profiles" ON profiles FOR SELECT USING (public.check_if_admin());
+DROP POLICY IF EXISTS "Authenticated users view profiles" ON profiles;
+CREATE POLICY "Authenticated users view profiles" ON profiles FOR SELECT USING (auth.uid() IS NOT NULL);
 
 -- tasks
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;

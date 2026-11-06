@@ -93,6 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addPersonalTaskBtn) addPersonalTaskBtn.addEventListener('click', () => openTaskModal());
     if (closeModalBtn) closeModalBtn.addEventListener('click', () => { taskModal.style.display = 'none'; });
     if (saveTaskBtn) saveTaskBtn.addEventListener('click', handleSaveTask);
+    const deleteTaskModalBtn = document.getElementById('delete-task-modal-btn');
+    if (deleteTaskModalBtn) deleteTaskModalBtn.addEventListener('click', handleDeleteModalTask);
 
     // Color selector
     document.querySelectorAll('#color-selector .color-option').forEach(option => {

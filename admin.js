@@ -101,13 +101,31 @@ window.onload = async () => {
 
     // Configurar opcions segons permisos
     if (!isGlobalAdmin) {
+        const titleEl = document.getElementById('admin-header-title');
+        const subEl = document.getElementById('admin-header-subtitle');
+        if (titleEl) titleEl.textContent = '👥 Gestió del teu Grup';
+        if (subEl) subEl.textContent = 'Afegeix alumnes al teu grup i gestiona les tasques de grup';
+
+        // Ocultar pujada massiva CSV per a administradors de grup
+        const csvSec = document.getElementById('csv-upload-section');
+        if (csvSec) csvSec.style.display = 'none';
+
+        // Ocultar formulari de creació de nou grup
+        const createGroupCard = document.getElementById('create-group-card');
+        if (createGroupCard) createGroupCard.style.display = 'none';
+
+        // Tipus de tasca disponibles per a gestor de grup
         newTaskTypeSelect.innerHTML = `
             <option value="group">👥 Grupal (per al teu grup)</option>
             <option value="personal">👤 Personal</option>
         `;
         groupSelectGroup.style.display = 'flex';
-        const createGroupCard = document.getElementById('create-group-card');
-        if (createGroupCard) createGroupCard.style.display = 'none';
+
+        // Personalitzar títols de pestanyes
+        const tabTasks = document.getElementById('tab-btn-tasks');
+        const tabGroups = document.getElementById('tab-btn-groups');
+        if (tabTasks) tabTasks.textContent = '📋 Tasques del Grup';
+        if (tabGroups) tabGroups.textContent = '👥 Membres del Grup';
     } else {
         newTaskTypeSelect.innerHTML = `
             <option value="global">🌍 Global (per a tota la classe)</option>
@@ -475,13 +493,25 @@ async function deleteGroup(groupId) {
 function openAddMemberModal(groupId) {
     memberGroupIdInput.value = groupId;
     memberUserSelect.innerHTML = '<option value="">— Selecciona usuari —</option>';
-    cachedUsers.forEach(u => {
+
+    // Obtenir membres actuals per evitar duplicats al selector
+    const grp = cachedGroups.find(g => g.id === groupId);
+    const existingMemberIds = new Set((grp?.task_group_members || []).map(m => m.user_id));
+
+    const availableUsers = cachedUsers.filter(u => !existingMemberIds.has(u.id));
+
+    availableUsers.forEach(u => {
         const opt = document.createElement('option');
         opt.value = u.id;
         const label = u.display_name ? `${u.email || u.id} (${u.display_name})` : (u.email || u.id);
         opt.textContent = label;
         memberUserSelect.appendChild(opt);
     });
+
+    if (availableUsers.length === 0) {
+        memberUserSelect.innerHTML = '<option value="">Tots els alumnes ja formen part del grup</option>';
+    }
+
     memberIsAdminCheckbox.checked = false;
     addMemberModal.style.display = 'flex';
 }
