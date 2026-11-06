@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard de Tasques | Supabase</title>
+    <title>Dashboard de Tasques | ASIX2A</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -15,9 +15,10 @@
     <div class="container">
         <header>
             <h1>🎓 Seguiment del Curs</h1>
-            <p class="subtitle">Inicia sessió per gestionar el teu progrés</p>
+            <p class="subtitle">Gestiona les tasques del grup ASIX2A</p>
         </header>
-        
+
+        <!-- Auth Section -->
         <div id="auth-section" class="auth-card">
             <div class="input-group">
                 <label>Correu electrònic</label>
@@ -33,19 +34,34 @@
             </div>
         </div>
 
+        <!-- Main Section -->
         <div id="main-section" style="display: none;">
             <div class="user-bar">
                 <span id="user-email"></span>
-                <div style="display: flex; gap: 10px;">
-                    <button id="add-personal-task-btn" class="btn-personal" style="background-color: var(--accent); padding: 8px 15px; font-size: 0.8rem; box-shadow: none;">➕ Tasca Personal</button>
-                    <a href="calendar.html" style="padding:8px 15px;font-size:0.8rem;background:#e2e8f0;border-radius:6px;text-decoration:none;color:var(--text-main);">📅 Calendari</a>
+                <div class="nav-links">
+                    <button id="add-personal-task-btn" class="btn-accent" style="padding:7px 14px;font-size:0.8rem;">➕ Tasca Personal</button>
+                    <a href="calendar.html" class="nav-link">📅 Calendari</a>
+                    <a href="stats.html" class="nav-link">📊 Estadístiques</a>
                     <button id="logout-btn" class="btn-logout">Sortir</button>
                 </div>
             </div>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar" id="filter-bar">
+                <div class="filter-tab active" data-filter="all">📋 Totes</div>
+                <div class="filter-tab" data-filter="global">🌍 Globals</div>
+                <div class="filter-tab" data-filter="group">👥 Grupals</div>
+                <div class="filter-tab" data-filter="personal">👤 Personals</div>
+            </div>
+
+            <!-- Labels Filter -->
+            <div class="labels-bar" id="labels-bar" style="display:none;"></div>
+
+            <!-- Tasks List -->
             <div id="tasks-container" class="tasks-grid"></div>
         </div>
 
-        <!-- Modal per a Tasques Personals / Edició -->
+        <!-- Modal: Task Create/Edit/Personalize -->
         <div id="task-modal" class="modal" style="display: none;">
             <div class="modal-content">
                 <h2 id="modal-title">Nova Tasca Personal</h2>
@@ -56,24 +72,32 @@
                 </div>
                 <div class="input-group">
                     <label>Data de venciment</label>
-                    <input type="datetime-local" id="task-date">
+                    <input type="date" id="task-date">
                 </div>
                 <div class="input-group">
                     <label>Enllaç (URL)</label>
                     <input type="url" id="task-link" placeholder="https://...">
                 </div>
                 <div class="input-group">
-                    <label>Color de la tasca</label>
-                    <div id="color-selector" style="display: flex; gap: 10px; margin-top: 5px;">
-                        <div class="color-option" data-color="#3b82f6" style="width: 25px; height: 25px; border-radius: 50%; background: #3b82f6; cursor: pointer; border: 2px solid transparent;"></div>
-                        <div class="color-option" data-color="#22c55e" style="width: 25px; height: 25px; border-radius: 50%; background: #22c55e; cursor: pointer; border: 2px solid transparent;"></div>
-                        <div class="color-option" data-color="#eab308" style="width: 25px; height: 25px; border-radius: 50%; background: #eab308; cursor: pointer; border: 2px solid transparent;"></div>
-                        <div class="color-option" data-color="#ef4444" style="width: 25px; height: 25px; border-radius: 50%; background: #ef4444; cursor: pointer; border: 2px solid transparent;"></div>
-                        <div class="color-option" data-color="#a855f7" style="width: 25px; height: 25px; border-radius: 50%; background: #a855f7; cursor: pointer; border: 2px solid transparent;"></div>
-                        <div class="color-option" data-color="#64748b" style="width: 25px; height: 25px; border-radius: 50%; background: #64748b; cursor: pointer; border: 2px solid transparent;"></div>
-                        <div class="color-option" data-color="" style="width: 25px; height: 25px; border-radius: 50%; background: #fff; cursor: pointer; border: 2px solid #ddd;"></div>
+                    <label>Color</label>
+                    <div class="color-selector" id="color-selector">
+                        <div class="color-option" data-color="#3b82f6" style="background:#3b82f6;"></div>
+                        <div class="color-option" data-color="#22c55e" style="background:#22c55e;"></div>
+                        <div class="color-option" data-color="#eab308" style="background:#eab308;"></div>
+                        <div class="color-option" data-color="#ef4444" style="background:#ef4444;"></div>
+                        <div class="color-option" data-color="#a855f7" style="background:#a855f7;"></div>
+                        <div class="color-option" data-color="#64748b" style="background:#64748b;"></div>
+                        <div class="color-option" data-color="" style="background:#fff;border-color:#ddd;"></div>
                     </div>
                     <input type="hidden" id="task-color">
+                </div>
+                <!-- Label assignment -->
+                <div class="input-group" id="label-assign-section">
+                    <label>Etiqueta</label>
+                    <div style="display:flex;gap:8px;">
+                        <select id="task-label-select" style="flex:1;"><option value="">— Sense etiqueta —</option></select>
+                        <button type="button" id="manage-labels-btn" class="btn-secondary" style="padding:8px 12px;font-size:0.75rem;">⚙️</button>
+                    </div>
                 </div>
                 <div class="modal-buttons">
                     <button id="save-task-btn">Guardar</button>
@@ -81,8 +105,23 @@
                 </div>
             </div>
         </div>
+
+        <!-- Modal: Manage Labels -->
+        <div id="labels-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>🏷️ Les meves Etiquetes</h2>
+                <div id="labels-list"></div>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <input type="text" id="new-label-name" placeholder="Nova etiqueta..." style="flex:1;">
+                    <input type="color" id="new-label-color" value="#6366f1" style="width:44px;padding:4px;border-radius:8px;cursor:pointer;">
+                    <button id="add-label-btn" style="padding:8px 14px;font-size:0.8rem;">➕</button>
+                </div>
+                <div class="modal-buttons" style="margin-top:12px;">
+                    <button id="close-labels-modal-btn" class="btn-secondary" style="grid-column:1/-1;">Tancar</button>
+                </div>
+            </div>
+        </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
