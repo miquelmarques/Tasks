@@ -252,8 +252,15 @@ function renderTasks() {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    // Filter by type
+    // Filter personal tasks and types with strict privacy check
     let filtered = allTasks.filter(task => {
+        // SEGURETAT: Una tasca personal NOMÉS és visible per al seu propietari
+        const isPersonal = task.task_type === 'personal' || (!task.task_type && task.user_id);
+        if (isPersonal && task.user_id !== currentUserId) {
+            return false;
+        }
+
+        // Filtre per pestanya
         if (currentFilter === 'all') return true;
         return task.task_type === currentFilter;
     });

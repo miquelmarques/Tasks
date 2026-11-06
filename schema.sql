@@ -208,30 +208,49 @@ CREATE POLICY "Authenticated users view profiles" ON profiles FOR SELECT USING (
 
 -- tasks
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "View tasks" ON tasks;
+
+-- Netejar totes les polítiques prèvies de la taula tasks per evitar regles permissives antigues
+DO $$
+DECLARE
+    pol RECORD;
+BEGIN
+    FOR pol IN
+        SELECT policyname
+        FROM pg_policies
+        WHERE tablename = 'tasks' AND schemaname = 'public'
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON public.tasks;', pol.policyname);
+    END LOOP;
+END $$;
+
 CREATE POLICY "View tasks" ON tasks FOR SELECT USING (
-    task_type = 'global'
+    (task_type = 'global' AND group_id IS NULL)
     OR (task_type = 'personal' AND user_id = auth.uid())
     OR (task_type = 'group' AND public.is_group_member(group_id, auth.uid()))
 );
-DROP POLICY IF EXISTS "Admin insert global tasks" ON tasks;
 CREATE POLICY "Admin insert global tasks" ON tasks FOR INSERT WITH CHECK (
     (task_type = 'global' AND public.check_if_admin())
     OR (task_type = 'personal' AND user_id = auth.uid())
     OR (task_type = 'group' AND (public.is_group_admin(group_id, auth.uid()) OR public.check_if_admin()))
 );
-DROP POLICY IF EXISTS "Update tasks" ON tasks;
 CREATE POLICY "Update tasks" ON tasks FOR UPDATE USING (
     public.check_if_admin()
     OR (task_type = 'personal' AND user_id = auth.uid())
     OR (task_type = 'group' AND (public.is_group_admin(group_id, auth.uid()) OR public.check_if_admin()))
 );
-DROP POLICY IF EXISTS "Delete tasks" ON tasks;
 CREATE POLICY "Delete tasks" ON tasks FOR DELETE USING (
     public.check_if_admin()
     OR (task_type = 'personal' AND user_id = auth.uid())
     OR (task_type = 'group' AND (public.is_group_admin(group_id, auth.uid()) OR public.check_if_admin()))
 );
+
+-- Si s'havien creat tasques personals que van agafar el valor per defecte 'global':
+UPDATE tasks
+SET task_type = 'personal'
+WHERE (task_type = 'global' OR task_type IS NULL)
+  AND user_id IS NOT NULL
+  AND group_id IS NULL
+  AND NOT EXISTS (SELECT 1 FROM profiles WHERE id = tasks.user_id AND is_admin = TRUE);
 
 -- user_tasks
 ALTER TABLE user_tasks ENABLE ROW LEVEL SECURITY;

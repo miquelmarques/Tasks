@@ -185,9 +185,14 @@ async function loadAdminTasks() {
         return;
     }
     let filtered = tasks || [];
-    if (!isGlobalAdmin) {
-        filtered = filtered.filter(t => myAdminGroupIds.includes(t.group_id) || t.user_id === currentAdminUserId);
-    }
+    filtered = filtered.filter(t => {
+        const isPersonal = t.task_type === 'personal' || (!t.task_type && t.user_id && !t.group_id);
+        if (isPersonal && t.user_id !== currentAdminUserId) return false;
+        if (!isGlobalAdmin) {
+            return myAdminGroupIds.includes(t.group_id) || (t.task_type === 'personal' && t.user_id === currentAdminUserId);
+        }
+        return true;
+    });
     renderAdminTasks(filtered);
 }
 

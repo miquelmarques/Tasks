@@ -67,7 +67,14 @@ function computeAndRenderStats(tasks, progress) {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    const total = tasks.length;
+    // Filtrar tasques privades d'altres usuaris
+    const visibleTasks = (tasks || []).filter(task => {
+        const isPersonal = task.task_type === 'personal' || (!task.task_type && task.user_id);
+        if (isPersonal && task.user_id !== currentUserId) return false;
+        return true;
+    });
+
+    const total = visibleTasks.length;
     let completed = 0;
     let overdue = 0;
     let pending = 0;
@@ -78,7 +85,7 @@ function computeAndRenderStats(tasks, progress) {
         personal: { total: 0, completed: 0, label: '👤 Personals' }
     };
 
-    tasks.forEach(task => {
+    visibleTasks.forEach(task => {
         const prog = progress.find(p => p.task_id === task.id);
         const isDone = prog ? prog.completed : false;
 

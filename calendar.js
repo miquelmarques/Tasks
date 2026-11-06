@@ -75,7 +75,12 @@ async function loadAppData() {
 }
 
 function buildEvents() {
-    return allTasks.filter(t => t.due_date).map(task => {
+    return allTasks.filter(t => {
+        if (!t.due_date) return false;
+        const isPersonal = t.task_type === 'personal' || (!t.task_type && t.user_id);
+        if (isPersonal && t.user_id !== currentUserId) return false;
+        return true;
+    }).map(task => {
         const prog = allProgress.find(p => p.task_id === task.id);
         const completed = prog ? prog.completed : false;
         const color = (prog && prog.color) ? prog.color : (task.color || (completed ? '#94a3b8' : '#6366f1'));
