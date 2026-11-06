@@ -3,56 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestió de Tasques | Afegeix Tasques</title>
+    <title>Gestió de Tasques | Panell d'Administració</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <div class="background-blob"></div>
     <div class="container">
         <header>
-            <h1>🛠️ Afegeix Nova Tasca</h1>
-            <p class="subtitle">Gestiona la llista de tasques del curs</p>
+            <h1>⚙️ Panell d'Administració</h1>
+            <p class="subtitle">Gestiona tasques globals, grupals i grups d'alumnes</p>
         </header>
 
-        <div class="auth-card">
-            <div class="input-group">
-                <label>Detalls de la Tasca</label>
-                <div style="display: flex; flex-direction: column; gap: 12px;">
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="new-task-name" placeholder="Ex: Tasca 5: Entrega final" style="flex: 1;">
-                        <button id="add-task-btn">Afegir</button>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <label style="font-size: 0.85rem; min-width: 80px;">Data límit:</label>
-                        <input type="datetime-local" id="new-task-date" style="flex: 1;">
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <label style="font-size: 0.85rem; min-width: 80px;">Enllaç (URL):</label>
-                        <input type="url" id="new-task-link" placeholder="https://..." style="flex: 1;">
-                    </div>
-                </div>
-            </div>
-
-            <div class="input-group" style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
-                <label>Importació Massiva (CSV)</label>
-                <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
-                    <input type="file" id="csv-file" accept=".csv" style="flex: 1; font-size: 0.8rem;">
-                    <button id="upload-csv-btn" style="background-color: var(--secondary);">Pujar CSV</button>
-                </div>
-                <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">
-                    Format del CSV: <code>nom,data</code> (ex: Tasca 1,2026-10-25T12:00)
-                </p>
+        <!-- Navigation Tabs -->
+        <div class="user-bar">
+            <span id="admin-user-email"></span>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">⬅️ Tornar</a>
+                <a href="stats.html" class="nav-link">📊 Estadístiques</a>
             </div>
         </div>
 
-        <div id="admin-tasks-container" class="tasks-grid">
-            <!-- Les tasques es llisten aquí amb botó d'eliminar -->
+        <!-- Section Switcher -->
+        <div class="filter-bar" style="margin-bottom:20px;">
+            <div class="filter-tab active" data-tab="tasks-tab">📋 Tasques</div>
+            <div class="filter-tab" data-tab="groups-tab">👥 Gestió de Grups</div>
         </div>
 
-        <!-- Modal per a Edició de Tasques -->
-        <div id="admin-task-modal" class="modal" style="display: none;">
+        <!-- ═══ TASKS TAB ═══════════════════════════════════ -->
+        <div id="tasks-tab">
+            <div class="auth-card">
+                <h3 style="font-size:1.1rem;margin-bottom:6px;">Afegir Nova Tasca</h3>
+                
+                <div class="input-group">
+                    <label>Tipus de Tasca</label>
+                    <select id="new-task-type">
+                        <option value="global">🌍 Global (per a tota la classe)</option>
+                        <option value="group">👥 Grupal (per a un grup concret)</option>
+                    </select>
+                </div>
+
+                <!-- Group selector (hidden if global) -->
+                <div class="input-group" id="group-select-group" style="display:none;">
+                    <label>Grup de Destinació</label>
+                    <select id="new-task-group">
+                        <option value="">— Selecciona un grup —</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Nom de la Tasca</label>
+                    <input type="text" id="new-task-name" placeholder="Ex: Pràctica 3: Docker">
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="input-group">
+                        <label>Data límit (només dia)</label>
+                        <input type="date" id="new-task-date">
+                    </div>
+                    <div class="input-group">
+                        <label>Enllaç (URL)</label>
+                        <input type="url" id="new-task-link" placeholder="https://...">
+                    </div>
+                </div>
+
+                <button id="add-task-btn" style="margin-top:6px;">➕ Afegir Tasca</button>
+
+                <!-- CSV Upload -->
+                <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+                    <label>Importació Massiva (CSV)</label>
+                    <div style="display:flex;gap:10px;align-items:center;margin-top:8px;">
+                        <input type="file" id="csv-file" accept=".csv" style="flex:1;font-size:0.8rem;">
+                        <button id="upload-csv-btn" class="btn-secondary" style="white-space:nowrap;">Pujar CSV</button>
+                    </div>
+                    <p style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">
+                        Format CSV: <code>nom,data,tipus</code> (ex: <code>Tasca 1,2026-10-25,global</code>). Data en format AAAA-MM-DD.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Admin Tasks List -->
+            <div id="admin-tasks-container" class="tasks-grid"></div>
+        </div>
+
+        <!-- ═══ GROUPS TAB ══════════════════════════════════ -->
+        <div id="groups-tab" style="display:none;">
+            <!-- Create Group Card -->
+            <div class="auth-card">
+                <h3 style="font-size:1.1rem;margin-bottom:6px;">Crear Nou Grup</h3>
+                <div class="input-group">
+                    <label>Nom del Grup</label>
+                    <input type="text" id="new-group-name" placeholder="Ex: Grup A - Projecte Final">
+                </div>
+                <div class="input-group">
+                    <label>Descripció (opcional)</label>
+                    <input type="text" id="new-group-desc" placeholder="Descripció breu...">
+                </div>
+                <button id="create-group-btn">➕ Crear Grup</button>
+            </div>
+
+            <!-- Existing Groups List -->
+            <div id="groups-list"></div>
+        </div>
+
+        <!-- ═══ MODAL: Edit Task ═════════════════════════════ -->
+        <div id="admin-task-modal" class="modal" style="display:none;">
             <div class="modal-content">
                 <h2>Editar Tasca</h2>
                 <input type="hidden" id="admin-task-id">
@@ -61,8 +117,19 @@
                     <input type="text" id="admin-task-name">
                 </div>
                 <div class="input-group">
+                    <label>Tipus</label>
+                    <select id="admin-task-type">
+                        <option value="global">🌍 Global</option>
+                        <option value="group">👥 Grupal</option>
+                    </select>
+                </div>
+                <div class="input-group" id="admin-group-select-group">
+                    <label>Grup</label>
+                    <select id="admin-task-group"><option value="">— Selecciona un grup —</option></select>
+                </div>
+                <div class="input-group">
                     <label>Data de venciment</label>
-                    <input type="datetime-local" id="admin-task-date">
+                    <input type="date" id="admin-task-date">
                 </div>
                 <div class="input-group">
                     <label>Enllaç (URL)</label>
@@ -75,8 +142,24 @@
             </div>
         </div>
 
-        <div style="text-align: center; margin-top: 20px;">
-            <a href="index.html" style="color: var(--primary); text-decoration: none; font-weight: 600;">⬅️ Tornar a la Web</a>
+        <!-- ═══ MODAL: Add Member to Group ═══════════════════ -->
+        <div id="add-member-modal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <h2>Afegir Membre al Grup</h2>
+                <input type="hidden" id="member-group-id">
+                <div class="input-group">
+                    <label>Selecciona un Usuari</label>
+                    <select id="member-user-select"><option value="">— Selecciona usuari —</option></select>
+                </div>
+                <div class="input-group" style="flex-direction:row;align-items:center;gap:10px;">
+                    <input type="checkbox" id="member-is-admin" style="width:18px;height:18px;">
+                    <label for="member-is-admin" style="font-size:0.85rem;cursor:pointer;text-transform:none;">És administrador de la tasca/grup?</label>
+                </div>
+                <div class="modal-buttons">
+                    <button id="save-member-btn">Afegir</button>
+                    <button id="close-member-modal-btn" class="btn-secondary">Cancel·lar</button>
+                </div>
+            </div>
         </div>
     </div>
     <script src="admin.js"></script>

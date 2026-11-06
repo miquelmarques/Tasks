@@ -1,42 +1,62 @@
 # 🎓 Dashboard de Seguiment de Tasques - ASIX2A
 
-Aquesta aplicació és una eina de gestió de tasques dissenyada específicament per al grup de classe de **ASIX2A**, amb l'objectiu de facilitar l'organització i el seguiment dels entregables i activitats del curs.
+Aquesta aplicació és una eina integral de gestió de tasques dissenyada específicament per al grup de classe de **ASIX2A**, amb l'objectiu de facilitar l'organització, el seguiment i l'anàlisi dels entregables i activitats del curs.
 
-## 🚀 Funcionalitats
+## 🚀 Funcionalitats Principals
 
-L'aplicació permet gestionar el progrés acadèmic mitjançant dues modalitats de tasques:
+L'aplicació permet gestionar el progrés acadèmic mitjançant tres modalitats de tasques:
 
-### 👥 Tasques Globals
-*   **Gestió Centralitzada:** L'administrador pot crear, editar i eliminar tasques que apareixen per a tots els alumnes del grup.
-*   **Seguiment Individual:** Cada alumne pot marcar com a "completades" les tasques globals per tenir un control del seu propi progrés.
-*   **Avisos de Venciment:** Les tasques mostren la data límit i canvien de color quan el venciment és imminent o ja ha passat.
+### 🌍 1. Tasques Globals
+* **Per a tothom:** L'administrador crea tasques que apareixen per a tots els alumnes del grup de classe.
+* **Seguiment Individual:** Cada alumne pot marcar com a "completada" la tasca per al seu propi perfil.
+* **Control de venciment:** Avisos visuals clars per data (🔴 Vencuda, ⚠️ Urgent, 📅 Pròxima).
 
-### 👤 Tasques Personals
-*   **Organització Pròpia:** Cada usuari pot crear les seves pròpies tasques per anotar recordatoris o subtasques personals.
-*   **Etiquetatge per Colors:** Possibilitat d'assignar colors a les tasques personals per categoritzar-les i ordenar-se millor.
-*   **Privacitat:** Les tasques personals només són visibles i editables per l'usuari que les ha creat.
+### 👥 2. Tasques Grupals
+* **Grups de Treball:** L'administrador crea grups (ex: *Projecte M04*, *Pràctica Final*) i afegeix alumnes.
+* **Administrador de Tasca/Grup:** Dins de cada grup es pot assignar un o diversos membres com a administradors del grup.
+* **Privadesa Grupal:** Només els membres del grup veuen i poden completar les tasques del seu grup.
 
-### 🛠️ Panell d'Administració
-*   **Control Total:** Accés restringit per a l'administrador per gestionar la llista mestre de tasques.
-*   **Importació Massiva:** Suport per a la pujada de tasques mitjançant fitxers **CSV** per accelerar la configuració del curs.
+### 👤 3. Tasques Personals
+* **Autonomia:** Cada usuari pot crear les seves pròpies tasques privades.
+* **Etiquetes i Filtres:** Crea etiquetes personalitzades (amb colors) i assigna-les a les teves tasques per filtrar ràpidament.
+* **Personalització:** Afegeix enllaços propis i colors per categoritzar-les.
+
+---
+
+## 📅 Visió per Dies (Sense Hora)
+Totes les tasques es gestionen exclusivament a nivell de **data (dia/mes/any)**, eliminant la confusió d'hores específiques. Tant al tauler principal com al calendari es mostren per dies complets.
+
+---
+
+## 📊 Índex Estadístic (`stats.html`)
+Pàgina de mètriques i analítica per fer seguiment del progrés:
+* **KPIs Clau:** Total de tasques, completades, pendents i vençudes.
+* **Barra de Progrés Global:** Percentatge general de feina completada.
+* **Gràfic d'Estat:** Distribució visual en gràfic de donut (Completades / Pendents / Vençudes).
+* **Desglossament per Modalitat:** Mètriques separades per a tasques Globals, Grupals i Personals.
+
+---
 
 ## 🛠️ Tecnologies Utilitzades
 
-*   **Frontend:** 
-    *   HTML5, CSS3 (estil modern amb variables i layout responsive).
-    *   JavaScript (ES6+).
-*   **Backend (BaaS):** 
-    *   **Supabase:** Utilitzat per a la base de dades PostgreSQL, l'autenticació d'usuaris i l'API REST.
-*   **Despleg:** 
-    *   GitHub Pages.
-
-## 🚀 Instal·lació i Ús
-
-1. **Accés:** Entra a la URL de la web desplegada a GitHub Pages.
-2. **Registre:** Crea un compte amb el teu correu electrònic.
-3. **Gestió:** 
-    *   Marca les tasques del curs a mesura que les completes.
-    *   Afegeix les teves tasques personals amb el botó "➕ Tasca Personal".
+* **Frontend:** HTML5, CSS3 modern (variables, grid, flexbox, animacions), JavaScript ES6+.
+* **Llibreries:**
+  * [Supabase JS Client v2](https://supabase.com)
+  * [FullCalendar](https://fullcalendar.io/) (vista de calendari)
+  * [Chart.js](https://www.chartjs.org/) (gràfics estadístics)
+* **Backend:** **Supabase** (PostgreSQL, Row Level Security, Auth).
+* **Notificacions:** Script en Python (`notify_tasks.py`) per avisar per correu automàticament abans del venciment.
 
 ---
-*Desenvolupat per al grup ASIX2A*
+
+## 🗄️ Configuració de la Base de Dades
+
+Per aplicar les noves taules i funcionalitats a PostgreSQL (Supabase):
+
+1. Obre el teu panell de **Supabase** -> **SQL Editor**.
+2. Copia i enganxa el contingut del fitxer [`schema.sql`](file:///home/miquelmarques/Tasks/schema.sql).
+3. Executa la consulta (`Run`). Això crearà:
+   * Les noves taules `task_groups`, `task_group_members`, `task_labels`, `task_label_assignments`.
+   * Les columnes `task_type` i `group_id` a la taula `tasks`.
+   * El canvi de tipus de data a `DATE` (només dia).
+   * Totes les polítiques de seguretat RLS (Row Level Security).

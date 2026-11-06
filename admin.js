@@ -1,12 +1,16 @@
+// ════════════════════════════════════════════════════════════
+// admin.js — Panell d'Administració ASIX2A
+// ════════════════════════════════════════════════════════════
+
 const SUPABASE_URL = '__SUPABASE_URL__';
 const SUPABASE_KEY = '__SUPABASE_KEY__';
 
-if (SUPABASE_URL === '__SUPABASE_URL__' || SUPABASE_KEY === '__SUPABASE_KEY__') {
-    console.error("❌ ERROR: Les variables de Supabase no s'han injectat. Si estàs provant la web localment, recorda que has de posar les claus manualment o desplegar a GitHub Pages.");
-}
-
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// DOM refs - Tasks
+const newTaskTypeSelect = document.getElementById('new-task-type');
+const groupSelectGroup = document.getElementById('group-select-group');
+const newTaskGroupSelect = document.getElementById('new-task-group');
 const newTaskNameInput = document.getElementById('new-task-name');
 const newTaskDateInput = document.getElementById('new-task-date');
 const newTaskLinkInput = document.getElementById('new-task-link');
@@ -15,97 +19,195 @@ const adminTasksContainer = document.getElementById('admin-tasks-container');
 const csvFileInput = document.getElementById('csv-file');
 const uploadCsvBtn = document.getElementById('upload-csv-btn');
 
-// Modal Edició
+// DOM refs - Groups
+const newGroupNameInput = document.getElementById('new-group-name');
+const newGroupDescInput = document.getElementById('new-group-desc');
+const createGroupBtn = document.getElementById('create-group-btn');
+const groupsList = document.getElementById('groups-list');
+
+// DOM refs - Edit Task Modal
 const adminTaskModal = document.getElementById('admin-task-modal');
 const adminTaskIdInput = document.getElementById('admin-task-id');
 const adminTaskNameInput = document.getElementById('admin-task-name');
+const adminTaskTypeSelect = document.getElementById('admin-task-type');
+const adminGroupSelectGroup = document.getElementById('admin-group-select-group');
+const adminTaskGroupSelect = document.getElementById('admin-task-group');
 const adminTaskDateInput = document.getElementById('admin-task-date');
 const adminTaskLinkInput = document.getElementById('admin-task-link');
 const adminSaveTaskBtn = document.getElementById('admin-save-task-btn');
 const adminCloseModalBtn = document.getElementById('admin-close-modal-btn');
 
-// Cargar tasques inicials
+// DOM refs - Add Member Modal
+const addMemberModal = document.getElementById('add-member-modal');
+const memberGroupIdInput = document.getElementById('member-group-id');
+const memberUserSelect = document.getElementById('member-user-select');
+const memberIsAdminCheckbox = document.getElementById('member-is-admin');
+const saveMemberBtn = document.getElementById('save-member-btn');
+const closeMemberModalBtn = document.getElementById('close-member-modal-btn');
+
+let currentAdminUserId = null;
+let cachedGroups = [];
+let cachedUsers = [];
+
+// ── Helpers ─────────────────────────────────────────────
+function escapeHtml(str) {
+    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function formatDateDisplay(dateStr) {
+    if (!dateStr) return 'Sense data';
+    const parts = String(dateStr).substring(0, 10).split('-');
+    if (parts.length !== 3) return dateStr;
+    const d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+    return d.toLocaleDateString('ca-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// ── Init ────────────────────────────────────────────────
 window.onload = async () => {
-    // Protecció d'accés
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) {
         window.location.href = 'index.html';
         return;
     }
-    
-    // Verificar admin
+    currentAdminUserId = session.user.id;
+    document.getElementById('admin-user-email').textContent = session.user.email;
+
+    // Verify admin
     const { data: profile } = await supabaseClient
         .from('profiles')
         .select('is_admin')
         .eq('id', session.user.id)
         .single();
-        
+
     if (!profile || !profile.is_admin) {
-        alert("No tens permisos per accedir a la gestió de tasques.");
+        alert("No tens permisos d'administrador.");
         window.location.href = 'index.html';
         return;
     }
-    
-    loadAdminTasks();
+
+    // Tab switcher
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const target = tab.dataset.tab;
+            document.getElementById('tasks-tab').style.display = target === 'tasks-tab' ? 'block' : 'none';
+            document.getElementById('groups-tab').style.display = target === 'groups-tab' ? 'block' : 'none';
+        });
+    });
+
+    // Toggle group selector based on task type
+    newTaskTypeSelect.addEventListener('change', () => {
+        groupSelectGroup.style.display = newTaskTypeSelect.value === 'group' ? 'flex' : 'none';
+    });
+    adminTaskTypeSelect.addEventListener('change', () => {
+        adminGroupSelectGroup.style.display = adminTaskTypeSelect.value === 'group' ? 'flex' : 'none';
+    });
+
+    // Task event listeners
+    addTaskBtn.addEventListener('click', addTask);
+    uploadCsvBtn.addEventListener('click', handleCSVUpload);
+    adminSaveTaskBtn.addEventListener('click', saveAdminTask);
+    adminCloseModalBtn.addEventListener('click', () => { adminTaskModal.style.display = 'none'; });
+
+    // Group event listeners
+    createGroupBtn.addEventListener('click', createGroup);
+    saveMemberBtn.addEventListener('click', saveMember);
+    closeMemberModalBtn.addEventListener('click', () => { addMemberModal.style.display = 'none'; });
+
+    await loadAll();
 };
 
+async function loadAll() {
+    await Promise.all([loadGroups(), loadUsers()]);
+    await loadAdminTasks();
+    renderGroups();
+}
+
+// ── Tasks Management ────────────────────────────────────
 async function loadAdminTasks() {
     const { data: tasks, error } = await supabaseClient
         .from('tasks')
         .select('*')
-        .order('id', { ascending: true });
+        .order('id', { ascending: false });
 
     if (error) {
         console.error(error);
         return;
     }
-
-    renderAdminTasks(tasks);
+    renderAdminTasks(tasks || []);
 }
 
 function renderAdminTasks(tasks) {
     adminTasksContainer.innerHTML = "";
+    if (tasks.length === 0) {
+        adminTasksContainer.innerHTML = '<div class="empty-state">No hi ha tasques creades.</div>';
+        return;
+    }
+
     tasks.forEach(task => {
         const div = document.createElement('div');
         div.className = 'task-item';
-        
-        const dateStr = task.due_date ? new Date(task.due_date).toLocaleString('ca-ES') : 'Sense data';
-        
+
+        const typeLabels = { global: '🌍 Global', group: '👥 Grupal', personal: '👤 Personal' };
+        const typeBadge = `<span class="task-type-badge ${task.task_type}">${typeLabels[task.task_type] || task.task_type}</span>`;
+
+        let groupInfo = '';
+        if (task.group_id) {
+            const grp = cachedGroups.find(g => g.id === task.group_id);
+            if (grp) groupInfo = `<span style="font-size:0.75rem;color:var(--text-muted);">📂 ${escapeHtml(grp.name)}</span>`;
+        }
+
+        const dateStr = formatDateDisplay(task.due_date);
+
         div.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <div style="display: flex; flex-direction: column; flex: 1;">
-                    <span style="font-weight: 600;">${task.name}</span>
-                    <span style="font-size: 0.75rem; color: var(--text-muted);">📅 ${dateStr}</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+                <div style="display:flex;flex-direction:column;flex:1;gap:3px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-weight:600;">${escapeHtml(task.name)}</span>
+                        ${task.link_url ? `<a href="${escapeHtml(task.link_url)}" target="_blank" class="link-btn">🔗</a>` : ''}
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span style="font-size:0.75rem;color:var(--text-muted);">📅 ${dateStr}</span>
+                        ${typeBadge}
+                        ${groupInfo}
+                    </div>
                 </div>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn-edit" style="padding: 5px 10px; font-size: 0.7rem; cursor: pointer; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px;" data-id="${task.id}">Editar</button>
-                    <button class="btn-logout" style="padding: 5px 10px; font-size: 0.7rem;" data-id="${task.id}">Eliminar</button>
+                <div style="display:flex;gap:6px;">
+                    <button class="btn-edit" style="padding:5px 10px;font-size:0.75rem;background:var(--bg-color);border:1px solid var(--border);border-radius:6px;cursor:pointer;">✏️</button>
+                    <button class="btn-delete" style="padding:5px 10px;font-size:0.75rem;background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);border-radius:6px;cursor:pointer;">🗑️</button>
                 </div>
             </div>
         `;
 
-        div.querySelector('.btn-logout').addEventListener('click', () => deleteTask(task.id));
         div.querySelector('.btn-edit').addEventListener('click', () => openEditModal(task));
+        div.querySelector('.btn-delete').addEventListener('click', () => deleteTask(task.id));
         adminTasksContainer.appendChild(div);
     });
 }
 
 async function addTask() {
     const name = newTaskNameInput.value.trim();
-    const dueDate = newTaskDateInput.value;
+    const dueDate = newTaskDateInput.value; // YYYY-MM-DD
     const linkUrl = newTaskLinkInput.value.trim();
+    const taskType = newTaskTypeSelect.value;
+    const groupId = newTaskGroupSelect.value ? parseInt(newTaskGroupSelect.value) : null;
 
-    if (!name || !dueDate) {
-        alert("Si us plau, ompliu tant el nom com la data de la tasca.");
-        return;
-    }
+    if (!name) { alert("Introdueix el nom de la tasca."); return; }
+    if (taskType === 'group' && !groupId) { alert("Selecciona un grup per a la tasca grupal."); return; }
 
-    const { error } = await supabaseClient
-        .from('tasks')
-        .insert([{ name, due_date: dueDate, link_url: linkUrl }]);
+    const insertPayload = {
+        name,
+        due_date: dueDate || null,
+        link_url: linkUrl || null,
+        task_type: taskType,
+        group_id: taskType === 'group' ? groupId : null,
+        user_id: currentAdminUserId
+    };
 
+    const { error } = await supabaseClient.from('tasks').insert([insertPayload]);
     if (error) {
-        console.error("Error detallat:", error);
         alert("Error afegint la tasca: " + error.message);
     } else {
         newTaskNameInput.value = "";
@@ -116,113 +218,246 @@ async function addTask() {
 }
 
 async function deleteTask(id) {
-    if (!confirm("Estàs segur que vols eliminar aquesta tasca?")) return;
-
-    const { error } = await supabaseClient
-        .from('tasks')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        alert("Error eliminant la tasca: " + error.message);
-    } else {
-        loadAdminTasks();
-    }
-}
-
-async function handleCSVUpload() {
-    const file = csvFileInput.files[0];
-    if (!file) {
-        alert("Si us plau, selecciona un fitxer CSV.");
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        const text = e.target.result;
-        const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
-        
-        const tasksToInsert = [];
-        
-        // Processem cada línia (nom, data)
-        lines.forEach((line, index) => {
-            const [name, dueDate] = line.split(',').map(item => item.trim());
-            if (name && dueDate) {
-                tasksToInsert.push({ name, due_date: dueDate });
-            } else {
-                console.warn(`Línia ${index + 1} ignorada per format incorrecte: ${line}`);
-            }
-        });
-
-        if (tasksToInsert.length === 0) {
-            alert("No s'han trobat dades vàlides al fitxer CSV.");
-            return;
-        }
-
-        if (!confirm(`Es pujaran ${tasksToInsert.length} tasques. Vols continuar?`)) return;
-
-        const { error } = await supabaseClient
-            .from('tasks')
-            .insert(tasksToInsert);
-
-        if (error) {
-            alert("Error pujant el CSV: " + error.message);
-        } else {
-            alert(`✅ S'han afegit ${tasksToInsert.length} tasques correctament.`);
-            csvFileInput.value = "";
-            loadAdminTasks();
-        }
-    };
-
-    reader.readAsText(file);
+    if (!confirm("Eliminar aquesta tasca per a tothom?")) return;
+    const { error } = await supabaseClient.from('tasks').delete().eq('id', id);
+    if (error) alert("Error eliminant: " + error.message);
+    else loadAdminTasks();
 }
 
 function openEditModal(task) {
     adminTaskIdInput.value = task.id;
     adminTaskNameInput.value = task.name;
-    if (task.due_date) {
-        const d = new Date(task.due_date);
-        adminTaskDateInput.value = d.toISOString().slice(0, 16);
-    } else {
-        adminTaskDateInput.value = '';
-    }
+    adminTaskTypeSelect.value = task.task_type || 'global';
+    adminGroupSelectGroup.style.display = task.task_type === 'group' ? 'flex' : 'none';
+    adminTaskGroupSelect.value = task.group_id || '';
+    adminTaskDateInput.value = task.due_date ? String(task.due_date).substring(0, 10) : '';
+    adminTaskLinkInput.value = task.link_url || '';
     adminTaskModal.style.display = 'flex';
 }
 
 async function saveAdminTask() {
     const id = adminTaskIdInput.value;
     const name = adminTaskNameInput.value.trim();
+    const taskType = adminTaskTypeSelect.value;
+    const groupId = adminTaskGroupSelect.value ? parseInt(adminTaskGroupSelect.value) : null;
     const dueDate = adminTaskDateInput.value;
+    const linkUrl = adminTaskLinkInput.value.trim();
 
-    console.log("Admin intentant guardar tasca:", { id, name, dueDate });
-
-    if (!name) {
-        alert("El nom de la tasca és obligatori.");
-        return;
-    }
+    if (!name) { alert("El nom és obligatori."); return; }
 
     try {
         const { error } = await supabaseClient
             .from('tasks')
-            .update({ name, due_date: dueDate || null })
-            .eq('id', parseInt(id)); // Assegurar que l'ID és un número
+            .update({
+                name,
+                task_type: taskType,
+                group_id: taskType === 'group' ? groupId : null,
+                due_date: dueDate || null,
+                link_url: linkUrl || null
+            })
+            .eq('id', parseInt(id));
 
         if (error) throw error;
-
-        console.log("Tasca admin actualitzada correctament!");
         adminTaskModal.style.display = 'none';
         loadAdminTasks();
-    } catch (error) {
-        console.error("Error detallat admin:", error);
-        alert("Error actualitzant la tasca: " + error.message);
+    } catch (e) {
+        alert("Error actualitzant: " + (e.message || e));
     }
 }
 
-addTaskBtn.addEventListener('click', addTask);
-uploadCsvBtn.addEventListener('click', handleCSVUpload);
+// ── CSV Upload ──────────────────────────────────────────
+async function handleCSVUpload() {
+    const file = csvFileInput.files[0];
+    if (!file) { alert("Selecciona un fitxer CSV."); return; }
 
-// Modals
-adminSaveTaskBtn.addEventListener('click', saveAdminTask);
-adminCloseModalBtn.addEventListener('click', () => {
-    adminTaskModal.style.display = 'none';
-});
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+        const tasksToInsert = [];
+
+        lines.forEach((line, index) => {
+            // format: name,date,type
+            const parts = line.split(',').map(s => s.trim());
+            const name = parts[0];
+            const dueDate = parts[1] || null;
+            const taskType = (parts[2] && ['global', 'group', 'personal'].includes(parts[2])) ? parts[2] : 'global';
+
+            if (name) {
+                tasksToInsert.push({
+                    name,
+                    due_date: dueDate ? dueDate.substring(0, 10) : null,
+                    task_type: taskType,
+                    user_id: currentAdminUserId
+                });
+            }
+        });
+
+        if (tasksToInsert.length === 0) {
+            alert("No s'han trobat dades vàlides al CSV.");
+            return;
+        }
+
+        if (!confirm(`Es crearan ${tasksToInsert.length} tasques. Vols continuar?`)) return;
+
+        const { error } = await supabaseClient.from('tasks').insert(tasksToInsert);
+        if (error) {
+            alert("Error pujant CSV: " + error.message);
+        } else {
+            alert(`✅ ${tasksToInsert.length} tasques afegides.`);
+            csvFileInput.value = "";
+            loadAdminTasks();
+        }
+    };
+    reader.readAsText(file);
+}
+
+// ── Groups Management ───────────────────────────────────
+async function loadGroups() {
+    const { data: groups, error } = await supabaseClient
+        .from('task_groups')
+        .select('*, task_group_members(id, user_id, is_admin, profiles(email, display_name))')
+        .order('id', { ascending: true });
+
+    if (error) { console.error(error); return; }
+    cachedGroups = groups || [];
+
+    // Populate group selects
+    populateGroupSelects();
+}
+
+function populateGroupSelects() {
+    const opts = cachedGroups.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
+    newTaskGroupSelect.innerHTML = '<option value="">— Selecciona un grup —</option>' + opts;
+    adminTaskGroupSelect.innerHTML = '<option value="">— Selecciona un grup —</option>' + opts;
+}
+
+async function loadUsers() {
+    const { data: profiles, error } = await supabaseClient
+        .from('profiles')
+        .select('id, email, display_name')
+        .order('email');
+
+    if (error) { console.error(error); return; }
+    cachedUsers = profiles || [];
+}
+
+function renderGroups() {
+    groupsList.innerHTML = '';
+    if (cachedGroups.length === 0) {
+        groupsList.innerHTML = '<div class="empty-state">No hi ha grups creats. Crea un grup per assignar tasques grupals.</div>';
+        return;
+    }
+
+    cachedGroups.forEach(grp => {
+        const card = document.createElement('div');
+        card.className = 'group-card';
+
+        const members = grp.task_group_members || [];
+        const membersHtml = members.map(m => {
+            const email = (m.profiles && m.profiles.email) ? m.profiles.email : m.user_id.substring(0, 8);
+            const adminBadge = m.is_admin ? '⭐ Admin' : '';
+            return `
+                <span class="member-chip ${m.is_admin ? 'admin' : ''}">
+                    ${escapeHtml(email)} ${adminBadge}
+                    <span class="remove-member" data-member-id="${m.id}" title="Eliminar">&times;</span>
+                </span>
+            `;
+        }).join('');
+
+        card.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h4>📂 ${escapeHtml(grp.name)}</h4>
+                <div style="display:flex;gap:6px;">
+                    <button class="btn-add-member" style="padding:4px 10px;font-size:0.75rem;" data-group-id="${grp.id}">➕ Afegir Membre</button>
+                    <button class="btn-delete-group" style="padding:4px 10px;font-size:0.75rem;background:var(--danger-light);color:var(--danger);border:1px solid var(--danger);box-shadow:none;" data-group-id="${grp.id}">🗑️</button>
+                </div>
+            </div>
+            ${grp.description ? `<p style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">${escapeHtml(grp.description)}</p>` : ''}
+            <div style="margin-top:10px;">
+                <label style="font-size:0.75rem;">Membres (${members.length}):</label>
+                <div class="member-list">${membersHtml || '<span style="font-size:0.78rem;color:var(--text-muted);">Cap membre afegit.</span>'}</div>
+            </div>
+        `;
+
+        card.querySelector('.btn-add-member').addEventListener('click', () => openAddMemberModal(grp.id));
+        card.querySelector('.btn-delete-group').addEventListener('click', () => deleteGroup(grp.id));
+        card.querySelectorAll('.remove-member').forEach(rm => {
+            rm.addEventListener('click', () => removeMember(rm.dataset.memberId));
+        });
+
+        groupsList.appendChild(card);
+    });
+}
+
+async function createGroup() {
+    const name = newGroupNameInput.value.trim();
+    const desc = newGroupDescInput.value.trim();
+    if (!name) { alert("Introdueix un nom per al grup."); return; }
+
+    const { error } = await supabaseClient
+        .from('task_groups')
+        .insert([{ name, description: desc, created_by: currentAdminUserId }]);
+
+    if (error) {
+        alert("Error creant el grup: " + error.message);
+    } else {
+        newGroupNameInput.value = '';
+        newGroupDescInput.value = '';
+        await loadGroups();
+        renderGroups();
+    }
+}
+
+async function deleteGroup(groupId) {
+    if (!confirm("Eliminar aquest grup? Les tasques associades es desvincularan.")) return;
+    const { error } = await supabaseClient.from('task_groups').delete().eq('id', groupId);
+    if (error) alert("Error eliminant el grup: " + error.message);
+    else {
+        await loadGroups();
+        renderGroups();
+    }
+}
+
+function openAddMemberModal(groupId) {
+    memberGroupIdInput.value = groupId;
+    memberUserSelect.innerHTML = '<option value="">— Selecciona usuari —</option>';
+    cachedUsers.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = `${u.email}${u.display_name ? ` (${u.display_name})` : ''}`;
+        memberUserSelect.appendChild(opt);
+    });
+    memberIsAdminCheckbox.checked = false;
+    addMemberModal.style.display = 'flex';
+}
+
+async function saveMember() {
+    const groupId = parseInt(memberGroupIdInput.value);
+    const userId = memberUserSelect.value;
+    const isAdmin = memberIsAdminCheckbox.checked;
+
+    if (!userId) { alert("Selecciona un usuari."); return; }
+
+    const { error } = await supabaseClient
+        .from('task_group_members')
+        .insert([{ group_id: groupId, user_id: userId, is_admin: isAdmin }]);
+
+    if (error) {
+        alert("Error afegint membre: " + error.message);
+    } else {
+        addMemberModal.style.display = 'none';
+        await loadGroups();
+        renderGroups();
+    }
+}
+
+async function removeMember(memberId) {
+    if (!confirm("Treure aquest usuari del grup?")) return;
+    const { error } = await supabaseClient.from('task_group_members').delete().eq('id', memberId);
+    if (error) alert("Error eliminant membre: " + error.message);
+    else {
+        await loadGroups();
+        renderGroups();
+    }
+}
