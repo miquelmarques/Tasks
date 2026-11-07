@@ -21,17 +21,25 @@
         <!-- Auth Section -->
         <div id="auth-section" class="auth-card">
             <div class="input-group">
-                <label>Correu electrònic</label>
-                <input type="email" id="email" placeholder="exemple@correu.com">
+                <label id="email-label">Correu electrònic o nom d'usuari</label>
+                <input type="text" id="email" placeholder="exemple@correu.com o usuari" autocomplete="username" autocapitalize="none" spellcheck="false">
+            </div>
+            <div class="input-group" id="signup-username-group" style="display:none;">
+                <label>Nom d'usuari (opcional)</label>
+                <input type="text" id="signup-username" placeholder="Ex: joan.garcia" autocomplete="off" autocapitalize="none" spellcheck="false">
+                <span style="font-size:0.7rem;color:var(--text-muted);">3-30 caràcters: lletres minúscules, números, punt, guió o guió baix.</span>
             </div>
             <div class="input-group">
                 <label>Contrasenya</label>
-                <input type="password" id="password" placeholder="********">
+                <input type="password" id="password" placeholder="********" autocomplete="current-password">
             </div>
             <div class="auth-buttons">
                 <button id="login-btn">🚀 Iniciar Sessió</button>
                 <button id="signup-btn" class="btn-secondary">Crear Compte</button>
             </div>
+            <p style="text-align:center;font-size:0.78rem;margin-top:4px;">
+                <a href="#" id="auth-mode-toggle" style="color:var(--primary);">No tens compte? Registra't</a>
+            </p>
         </div>
 
         <!-- Main Section -->

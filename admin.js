@@ -435,7 +435,9 @@ function renderGroups() {
         const members = grp.task_group_members || [];
         const membersHtml = members.map(m => {
             const user = cachedUsers.find(u => u.id === m.user_id);
-            const email = user ? (user.email || user.display_name) : m.user_id.substring(0, 8);
+            const email = user
+                ? (user.username ? `@${user.username}` : (user.email || user.display_name))
+                : m.user_id.substring(0, 8);
             const adminBadge = m.is_admin ? '⭐ Admin' : '';
             return `
                 <span class="member-chip ${m.is_admin ? 'admin' : ''}">
@@ -523,7 +525,8 @@ function openAddMemberModal(groupId) {
     availableUsers.forEach(u => {
         const opt = document.createElement('option');
         opt.value = u.id;
-        const label = u.display_name ? `${u.email || u.id} (${u.display_name})` : (u.email || u.id);
+        const base = u.username ? `@${u.username} — ${u.email || ''}` : (u.email || u.id);
+        const label = u.display_name ? `${base} (${u.display_name})` : base;
         opt.textContent = label;
         memberUserSelect.appendChild(opt);
     });
@@ -571,14 +574,20 @@ async function createUser() {
     const emailInput = document.getElementById('new-user-email');
     const passInput = document.getElementById('new-user-password');
     const nameInput = document.getElementById('new-user-name');
+    const usernameInput = document.getElementById('new-user-username');
     const groupSelect = document.getElementById('new-user-group');
 
     const email = emailInput.value.trim().toLowerCase();
     const password = passInput.value;
     const displayName = nameInput.value.trim();
     const groupId = groupSelect.value ? parseInt(groupSelect.value, 10) : null;
+    const username = usernameInput ? usernameInput.value.trim().toLowerCase() : '';
 
     if (!email || !password) { alert("Introdueix correu i contrasenya."); return; }
+    if (username && !/^[a-z0-9._-]{3,30}$/.test(username)) {
+        alert("Nom d'usuari no vàlid: 3-30 caràcters (a-z, 0-9, punt, guió o guió baix).");
+        return;
+    }
     if (password.length < 6) { alert("La contrasenya ha de tenir com a mínim 6 caràcters."); return; }
     if (!isGlobalAdmin && !groupId) { alert("Selecciona el grup on afegir l'usuari."); return; }
 
@@ -586,7 +595,8 @@ async function createUser() {
         p_email: email,
         p_password: password,
         p_display_name: displayName || null,
-        p_group_id: groupId
+        p_group_id: groupId,
+        p_username: username || null
     });
 
     if (error) {
@@ -598,10 +608,11 @@ async function createUser() {
         return;
     }
 
-    alert(`✅ Usuari ${email} creat. Ja pot iniciar sessió.`);
+    alert(`✅ Usuari ${email} creat. Ja pot iniciar sessió${username ? ` amb el correu o amb l'usuari "${username}"` : ''}.`);
     emailInput.value = '';
     passInput.value = '';
     nameInput.value = '';
+    if (usernameInput) usernameInput.value = '';
     await Promise.all([loadGroups(), loadUsers()]);
     renderGroups();
 }

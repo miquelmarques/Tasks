@@ -88,6 +88,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loginBtn) loginBtn.addEventListener('click', handleLogin);
     if (signupBtn) signupBtn.addEventListener('click', handleSignUp);
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    const modeToggle = document.getElementById('auth-mode-toggle');
+    if (modeToggle) modeToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        setAuthMode(authMode === 'login' ? 'signup' : 'login');
+    });
+    [emailInput, passwordInput].forEach(inp => inp && inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') (authMode === 'login' ? handleLogin : handleSignUp)();
+    }));
+    setAuthMode('login');
 
     // Modal events
     if (addPersonalTaskBtn) addPersonalTaskBtn.addEventListener('click', () => openTaskModal());
@@ -127,25 +136,100 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Auth ────────────────────────────────────────────────
+let authMode = 'login'; // 'login' | 'signup'
+const USERNAME_RE = /^[a-z0-9._-]{3,30}$/;
+
+function setAuthMode(mode) {
+    authMode = mode;
+    const isLogin = mode === 'login';
+    if (loginBtn) loginBtn.style.display = isLogin ? '' : 'none';
+    if (signupBtn) signupBtn.style.display = isLogin ? 'none' : '';
+    const btns = document.querySelector('.auth-buttons');
+    if (btns) btns.style.gridTemplateColumns = '1fr';
+    const userGroup = document.getElementById('signup-username-group');
+    if (userGroup) userGroup.style.display = isLogin ? 'none' : 'flex';
+    const label = document.getElementById('email-label');
+    if (label) label.textContent = isLogin ? "Correu electrònic o nom d'usuari" : 'Correu electrònic';
+    if (emailInput) {
+        emailInput.placeholder = isLogin ? 'exemple@correu.com o usuari' : 'exemple@correu.com';
+        emailInput.autocomplete = isLogin ? 'username' : 'email';
+    }
+    if (passwordInput) passwordInput.autocomplete = isLogin ? 'current-password' : 'new-password';
+    const toggle = document.getElementById('auth-mode-toggle');
+    if (toggle) toggle.textContent = isLogin ? "No tens compte? Registra't" : 'Ja tens compte? Inicia sessió';
+}
+
+function authErrorMessage(error) {
+    const code = error?.code || error?.error_code || '';
+    const msg = error?.message || String(error);
+    if (code === 'invalid_credentials' || /invalid login credentials/i.test(msg))
+        return "Usuari/correu o contrasenya incorrectes.";
+    if (code === 'email_not_confirmed' || /email not confirmed/i.test(msg))
+        return "El teu compte encara no està confirmat. Demana a un administrador que el confirmi des del panell de Gestió.";
+    if (code === 'email_provider_disabled' || /email logins are disabled/i.test(msg))
+        return "L'inici de sessió per correu està desactivat a Supabase (Authentication → Sign In / Providers → Email). Avisa l'administrador.";
+    if (code === 'user_already_exists' || /already registered/i.test(msg))
+        return "Ja existeix un compte amb aquest correu. Inicia sessió.";
+    if (code === 'weak_password' || /password should be/i.test(msg))
+        return "La contrasenya és massa feble (mínim 6 caràcters).";
+    if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit')
+        return "Massa intents. Espera uns minuts i torna-ho a provar.";
+    if (/database error querying schema/i.test(msg))
+        return "Error intern del compte. L'administrador ha de tornar a executar schema.sql a Supabase.";
+    return msg;
+}
+
 async function handleSignUp() {
-    const email = emailInput.value.trim();
+    const email = emailInput.value.trim().toLowerCase();
     const password = passwordInput.value;
-    if (!email || !password) { alert("Omple tots els camps."); return; }
-    const { data, error } = await supabaseClient.auth.signUp({ email, password });
-    if (error) alert(error.message);
-    else if (data.session) { alert("Compte creat!"); checkUser(); }
+    const usernameInput = document.getElementById('signup-username');
+    const username = usernameInput ? usernameInput.value.trim().toLowerCase() : '';
+
+    if (!email || !password) { alert("Omple el correu i la contrasenya."); return; }
+    if (!email.includes('@')) { alert("Per crear un compte cal un correu electrònic vàlid."); return; }
+    if (username) {
+        if (!USERNAME_RE.test(username)) {
+            alert("Nom d'usuari no vàlid: 3-30 caràcters (a-z, 0-9, punt, guió o guió baix).");
+            return;
+        }
+        const { data: available, error: avErr } = await supabaseClient.rpc('username_available', { p_username: username });
+        if (!avErr && available === false) { alert("Aquest nom d'usuari ja està agafat."); return; }
+    }
+
+    const { data, error } = await supabaseClient.auth.signUp({
+        email, password,
+        options: { data: username ? { username } : {} }
+    });
+    if (error) { alert(authErrorMessage(error)); return; }
+    if (data.session) { checkUser(); }
     else {
         alert("Compte creat, però cal confirmar-lo. Si no reps cap correu, demana a un administrador que el confirmi des del panell de Gestió.");
+        setAuthMode('login');
     }
 }
 
 async function handleLogin() {
-    const email = emailInput.value.trim();
+    const identifier = emailInput.value.trim();
     const password = passwordInput.value;
-    if (!email || !password) { alert("Omple tots els camps."); return; }
+    if (!identifier || !password) { alert("Omple tots els camps."); return; }
+
+    let email = identifier.toLowerCase();
+    if (!identifier.includes('@')) {
+        // Nom d'usuari → correu
+        const { data, error } = await supabaseClient.rpc('get_login_email', { p_identifier: identifier });
+        if (error) {
+            console.error(error);
+            alert("No s'ha pogut comprovar el nom d'usuari. Prova amb el correu electrònic.");
+            return;
+        }
+        if (!data) { alert("Usuari/correu o contrasenya incorrectes."); return; }
+        email = data;
+    }
+
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) alert(error.message);
-    else checkUser();
+    if (error) { console.error(error); alert(authErrorMessage(error)); return; }
+    passwordInput.value = '';
+    checkUser();
 }
 
 async function handleLogout() {

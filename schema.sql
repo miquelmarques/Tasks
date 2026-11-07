@@ -23,18 +23,37 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='display_name') THEN
         ALTER TABLE profiles ADD COLUMN display_name TEXT;
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='username') THEN
+        ALTER TABLE profiles ADD COLUMN username TEXT;
+    END IF;
+END $$;
+
+-- Nom d'usuari: únic (sense distingir majúscules), 3-30 caràcters a-z 0-9 . _ -
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_lower_idx ON profiles (lower(username));
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_username_format') THEN
+        ALTER TABLE profiles ADD CONSTRAINT profiles_username_format
+            CHECK (username IS NULL OR username ~ '^[a-z0-9._-]{3,30}$');
+    END IF;
 END $$;
 
 -- Trigger per crear perfil automàticament en registrar-se
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+    v_username TEXT := lower(trim(NEW.raw_user_meta_data->>'username'));
 BEGIN
-    INSERT INTO public.profiles (id, email)
-    VALUES (NEW.id, NEW.email)
+    IF v_username IS NULL OR v_username !~ '^[a-z0-9._-]{3,30}$'
+       OR EXISTS (SELECT 1 FROM public.profiles WHERE lower(username) = v_username) THEN
+        v_username := NULL;   -- mai fer fallar el registre per culpa del nom d'usuari
+    END IF;
+    INSERT INTO public.profiles (id, email, username, display_name)
+    VALUES (NEW.id, NEW.email, v_username, NULLIF(trim(NEW.raw_user_meta_data->>'display_name'), ''))
     ON CONFLICT (id) DO NOTHING;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -289,6 +308,11 @@ GRANT ALL ON TABLE public.user_tasks TO authenticated;
 GRANT ALL ON TABLE public.profiles TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 
+-- SEGURETAT: un usuari NO pot canviar-se is_admin ell mateix.
+-- Només es poden modificar aquestes columnes del propi perfil.
+REVOKE UPDATE, INSERT, DELETE ON TABLE public.profiles FROM authenticated, anon;
+GRANT UPDATE (display_name, username) ON TABLE public.profiles TO authenticated;
+
 -- task_group_members
 ALTER TABLE task_group_members ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "View group members" ON task_group_members;
@@ -346,11 +370,13 @@ CREATE INDEX IF NOT EXISTS idx_labels_user ON task_labels(user_id);
 -- Només la poden executar administradors globals o administradors de grup.
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
+DROP FUNCTION IF EXISTS public.admin_create_user(TEXT, TEXT, TEXT, INT);
 CREATE OR REPLACE FUNCTION public.admin_create_user(
     p_email        TEXT,
     p_password     TEXT,
     p_display_name TEXT DEFAULT NULL,
-    p_group_id     INT  DEFAULT NULL
+    p_group_id     INT  DEFAULT NULL,
+    p_username     TEXT DEFAULT NULL
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -360,6 +386,7 @@ AS $$
 DECLARE
     v_user_id UUID := gen_random_uuid();
     v_email   TEXT := lower(trim(p_email));
+    v_username TEXT := NULLIF(lower(trim(p_username)), '');
 BEGIN
     -- Permisos: admin global, o admin del grup indicat
     IF NOT (
@@ -378,18 +405,28 @@ BEGIN
     IF EXISTS (SELECT 1 FROM auth.users WHERE email = v_email) THEN
         RAISE EXCEPTION 'Ja existeix un usuari amb el correu %', v_email;
     END IF;
+    IF v_username IS NOT NULL THEN
+        IF v_username !~ '^[a-z0-9._-]{3,30}$' THEN
+            RAISE EXCEPTION 'Nom d''usuari no vàlid (3-30 caràcters: a-z, 0-9, punt, guió, guió baix)';
+        END IF;
+        IF EXISTS (SELECT 1 FROM public.profiles WHERE lower(username) = v_username) THEN
+            RAISE EXCEPTION 'El nom d''usuari % ja està agafat', v_username;
+        END IF;
+    END IF;
 
     INSERT INTO auth.users (
         instance_id, id, aud, role, email, encrypted_password,
         email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
         created_at, updated_at,
-        confirmation_token, recovery_token, email_change_token_new, email_change
+        confirmation_token, recovery_token, email_change_token_new, email_change,
+        email_change_token_current, phone_change, phone_change_token, reauthentication_token
     ) VALUES (
         '00000000-0000-0000-0000-000000000000', v_user_id, 'authenticated', 'authenticated',
         v_email, crypt(p_password, gen_salt('bf')),
         now(), '{"provider":"email","providers":["email"]}'::jsonb,
         jsonb_build_object('display_name', p_display_name),
         now(), now(),
+        '', '', '', '',
         '', '', '', ''
     );
 
@@ -403,9 +440,10 @@ BEGIN
     );
 
     -- El trigger on_auth_user_created ja crea el perfil; afegim el nom
-    INSERT INTO public.profiles (id, email, display_name)
-    VALUES (v_user_id, v_email, NULLIF(trim(p_display_name), ''))
-    ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name;
+    INSERT INTO public.profiles (id, email, display_name, username)
+    VALUES (v_user_id, v_email, NULLIF(trim(p_display_name), ''), v_username)
+    ON CONFLICT (id) DO UPDATE
+        SET display_name = EXCLUDED.display_name, username = EXCLUDED.username;
 
     IF p_group_id IS NOT NULL THEN
         INSERT INTO public.task_group_members (group_id, user_id, is_admin)
@@ -417,8 +455,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.admin_create_user(TEXT, TEXT, TEXT, INT) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.admin_create_user(TEXT, TEXT, TEXT, INT) TO authenticated;
+REVOKE ALL ON FUNCTION public.admin_create_user(TEXT, TEXT, TEXT, INT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_create_user(TEXT, TEXT, TEXT, INT, TEXT) TO authenticated;
 
 -- Confirmar manualment un usuari registrat que no ha pogut verificar el correu
 CREATE OR REPLACE FUNCTION public.admin_confirm_user(p_user_id UUID)
@@ -467,3 +505,70 @@ INSERT INTO public.profiles (id, email)
 SELECT u.id, u.email FROM auth.users u
 WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id)
 ON CONFLICT (id) DO NOTHING;
+
+-- Usuaris creats abans amb columnes de token a NULL no poden iniciar sessió
+-- ("Database error querying schema"). Les posem a ''.
+UPDATE auth.users SET
+    confirmation_token         = COALESCE(confirmation_token, ''),
+    recovery_token             = COALESCE(recovery_token, ''),
+    email_change_token_new     = COALESCE(email_change_token_new, ''),
+    email_change               = COALESCE(email_change, ''),
+    email_change_token_current = COALESCE(email_change_token_current, ''),
+    phone_change               = COALESCE(phone_change, ''),
+    phone_change_token         = COALESCE(phone_change_token, ''),
+    reauthentication_token     = COALESCE(reauthentication_token, '')
+WHERE confirmation_token IS NULL OR recovery_token IS NULL
+   OR email_change_token_new IS NULL OR email_change IS NULL
+   OR email_change_token_current IS NULL OR phone_change IS NULL
+   OR phone_change_token IS NULL OR reauthentication_token IS NULL;
+
+-- ────────────────────────────────────────────────────────────
+-- 10. INICI DE SESSIÓ AMB NOM D'USUARI
+-- ────────────────────────────────────────────────────────────
+-- Supabase només accepta correu + contrasenya. Aquesta funció tradueix
+-- un nom d'usuari al seu correu abans de cridar signInWithPassword.
+-- Nota: permet saber el correu d'un nom d'usuari conegut (acceptable per a
+-- una app de classe; la contrasenya continua sent necessària).
+CREATE OR REPLACE FUNCTION public.get_login_email(p_identifier TEXT)
+RETURNS TEXT
+LANGUAGE sql
+SECURITY DEFINER STABLE
+SET search_path = public
+AS $$
+    SELECT email FROM public.profiles
+    WHERE lower(username) = lower(trim(p_identifier))
+    LIMIT 1;
+$$;
+REVOKE ALL ON FUNCTION public.get_login_email(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_login_email(TEXT) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.username_available(p_username TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER STABLE
+SET search_path = public
+AS $$
+    SELECT NOT EXISTS (SELECT 1 FROM public.profiles WHERE lower(username) = lower(trim(p_username)));
+$$;
+REVOKE ALL ON FUNCTION public.username_available(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.username_available(TEXT) TO anon, authenticated;
+
+-- Assignar un nom d'usuari per defecte (part del correu abans de @) als
+-- usuaris que no en tenen. Si ja està agafat s'hi afegeix un número.
+DO $$
+DECLARE
+    r RECORD;
+    base TEXT;
+    cand TEXT;
+    n INT;
+BEGIN
+    FOR r IN SELECT id, email FROM public.profiles WHERE username IS NULL AND email IS NOT NULL LOOP
+        base := left(regexp_replace(lower(split_part(r.email, '@', 1)), '[^a-z0-9._-]', '', 'g'), 26);
+        IF length(base) < 3 THEN base := rpad(base, 3, '0'); END IF;
+        cand := base; n := 1;
+        WHILE EXISTS (SELECT 1 FROM public.profiles WHERE lower(username) = cand) LOOP
+            n := n + 1; cand := base || n;
+        END LOOP;
+        UPDATE public.profiles SET username = cand WHERE id = r.id;
+    END LOOP;
+END $$;

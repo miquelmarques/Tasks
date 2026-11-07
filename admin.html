@@ -121,13 +121,17 @@
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                     <div class="input-group">
+                        <label>Nom d'usuari (opcional)</label>
+                        <input type="text" id="new-user-username" placeholder="Ex: joan.garcia" autocomplete="off" autocapitalize="none" spellcheck="false">
+                    </div>
+                    <div class="input-group">
                         <label>Nom (opcional)</label>
                         <input type="text" id="new-user-name" placeholder="Nom i cognom">
                     </div>
-                    <div class="input-group">
-                        <label id="new-user-group-label">Afegir al grup (opcional)</label>
-                        <select id="new-user-group"><option value="">— Cap grup —</option></select>
-                    </div>
+                </div>
+                <div class="input-group">
+                    <label id="new-user-group-label">Afegir al grup (opcional)</label>
+                    <select id="new-user-group"><option value="">— Cap grup —</option></select>
                 </div>
                 <button id="create-user-btn">➕ Crear Usuari</button>
             </div>
