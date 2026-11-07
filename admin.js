@@ -164,6 +164,14 @@ window.onload = async () => {
     saveMemberBtn.addEventListener('click', saveMember);
     closeMemberModalBtn.addEventListener('click', () => { addMemberModal.style.display = 'none'; });
 
+    // User creation
+    const createUserBtn = document.getElementById('create-user-btn');
+    if (createUserBtn) createUserBtn.addEventListener('click', createUser);
+    if (!isGlobalAdmin) {
+        const lbl = document.getElementById('new-user-group-label');
+        if (lbl) lbl.textContent = 'Grup (obligatori)';
+    }
+
     await loadAll();
 };
 
@@ -171,6 +179,7 @@ async function loadAll() {
     await Promise.all([loadGroups(), loadUsers()]);
     await loadAdminTasks();
     renderGroups();
+    await loadUnconfirmedUsers();
 }
 
 // ── Tasks Management ────────────────────────────────────
@@ -391,6 +400,12 @@ function populateGroupSelects() {
     const opts = visibleGroups.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('');
     newTaskGroupSelect.innerHTML = '<option value="">— Selecciona un grup —</option>' + opts;
     adminTaskGroupSelect.innerHTML = '<option value="">— Selecciona un grup —</option>' + opts;
+    const newUserGroupSelect = document.getElementById('new-user-group');
+    if (newUserGroupSelect) {
+        newUserGroupSelect.innerHTML = (isGlobalAdmin
+            ? '<option value="">— Cap grup —</option>'
+            : '<option value="">— Selecciona un grup —</option>') + opts;
+    }
 }
 
 async function loadUsers() {
@@ -549,4 +564,73 @@ async function removeMember(memberId) {
         await loadGroups();
         renderGroups();
     }
+}
+
+// ── User Management ─────────────────────────────────────
+async function createUser() {
+    const emailInput = document.getElementById('new-user-email');
+    const passInput = document.getElementById('new-user-password');
+    const nameInput = document.getElementById('new-user-name');
+    const groupSelect = document.getElementById('new-user-group');
+
+    const email = emailInput.value.trim().toLowerCase();
+    const password = passInput.value;
+    const displayName = nameInput.value.trim();
+    const groupId = groupSelect.value ? parseInt(groupSelect.value, 10) : null;
+
+    if (!email || !password) { alert("Introdueix correu i contrasenya."); return; }
+    if (password.length < 6) { alert("La contrasenya ha de tenir com a mínim 6 caràcters."); return; }
+    if (!isGlobalAdmin && !groupId) { alert("Selecciona el grup on afegir l'usuari."); return; }
+
+    const { error } = await supabaseClient.rpc('admin_create_user', {
+        p_email: email,
+        p_password: password,
+        p_display_name: displayName || null,
+        p_group_id: groupId
+    });
+
+    if (error) {
+        console.error(error);
+        const hint = /function .* does not exist|Could not find the function/i.test(error.message)
+            ? "\n\nCal executar la secció 9 de schema.sql a l'SQL Editor de Supabase."
+            : '';
+        alert("Error creant l'usuari: " + error.message + hint);
+        return;
+    }
+
+    alert(`✅ Usuari ${email} creat. Ja pot iniciar sessió.`);
+    emailInput.value = '';
+    passInput.value = '';
+    nameInput.value = '';
+    await Promise.all([loadGroups(), loadUsers()]);
+    renderGroups();
+}
+
+async function loadUnconfirmedUsers() {
+    const card = document.getElementById('unconfirmed-users-card');
+    const list = document.getElementById('unconfirmed-users-list');
+    if (!card || !list || !isGlobalAdmin) return;
+
+    const { data, error } = await supabaseClient.rpc('admin_unconfirmed_users');
+    if (error || !data || data.length === 0) {
+        card.style.display = 'none';
+        return;
+    }
+
+    card.style.display = 'block';
+    list.innerHTML = '';
+    data.forEach(u => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);';
+        row.innerHTML = `
+            <span style="flex:1;font-size:0.85rem;">${escapeHtml(u.email)}</span>
+            <button style="padding:4px 10px;font-size:0.75rem;">✅ Confirmar</button>
+        `;
+        row.querySelector('button').addEventListener('click', async () => {
+            const { error: cErr } = await supabaseClient.rpc('admin_confirm_user', { p_user_id: u.id });
+            if (cErr) alert("Error confirmant: " + cErr.message);
+            else await loadUnconfirmedUsers();
+        });
+        list.appendChild(row);
+    });
 }

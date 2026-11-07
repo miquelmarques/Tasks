@@ -103,6 +103,44 @@
                 <button id="create-group-btn">➕ Crear Grup</button>
             </div>
 
+            <!-- Create User Card -->
+            <div class="auth-card" id="create-user-card">
+                <h3 style="font-size:1.1rem;margin-bottom:6px;">👤 Crear Nou Usuari</h3>
+                <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">
+                    L'usuari es crea amb el correu ja confirmat: podrà iniciar sessió immediatament amb aquesta contrasenya.
+                </p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="input-group">
+                        <label>Correu electrònic</label>
+                        <input type="email" id="new-user-email" placeholder="alumne@correu.com" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label>Contrasenya (mín. 6)</label>
+                        <input type="text" id="new-user-password" placeholder="Contrasenya inicial" autocomplete="new-password">
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="input-group">
+                        <label>Nom (opcional)</label>
+                        <input type="text" id="new-user-name" placeholder="Nom i cognom">
+                    </div>
+                    <div class="input-group">
+                        <label id="new-user-group-label">Afegir al grup (opcional)</label>
+                        <select id="new-user-group"><option value="">— Cap grup —</option></select>
+                    </div>
+                </div>
+                <button id="create-user-btn">➕ Crear Usuari</button>
+            </div>
+
+            <!-- Unconfirmed users (global admins only) -->
+            <div class="auth-card" id="unconfirmed-users-card" style="display:none;">
+                <h3 style="font-size:1.1rem;margin-bottom:6px;">⏳ Usuaris pendents de confirmar</h3>
+                <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">
+                    S'han registrat però no han pogut verificar el correu. Confirma'ls manualment perquè puguin entrar.
+                </p>
+                <div id="unconfirmed-users-list"></div>
+            </div>
+
             <!-- Existing Groups List -->
             <div id="groups-list"></div>
         </div>

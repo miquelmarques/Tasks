@@ -134,7 +134,9 @@ async function handleSignUp() {
     const { data, error } = await supabaseClient.auth.signUp({ email, password });
     if (error) alert(error.message);
     else if (data.session) { alert("Compte creat!"); checkUser(); }
-    else { alert("Revisa el correu per confirmar."); }
+    else {
+        alert("Compte creat, però cal confirmar-lo. Si no reps cap correu, demana a un administrador que el confirmi des del panell de Gestió.");
+    }
 }
 
 async function handleLogin() {
@@ -462,6 +464,10 @@ function openTaskModal(id = null, name = '', date = '', color = '', canEditFull 
     taskNameInput.disabled = !canEditFull;
     taskDateInput.disabled = !canEditFull;
 
+    // Botó d'eliminar: només en edició i si l'usuari té permisos complets
+    const deleteBtn = document.getElementById('delete-task-modal-btn');
+    if (deleteBtn) deleteBtn.style.display = (id && canEditFull) ? 'block' : 'none';
+
     // Select current label
     const currentAssignment = allLabelAssignments.find(la => la.task_id === parseInt(id));
     if (taskLabelSelect) taskLabelSelect.value = currentAssignment ? currentAssignment.label_id : '';
@@ -487,6 +493,8 @@ async function handleSaveTask() {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) throw new Error("Sessió caducada.");
+
+        let finalTaskId = id ? parseInt(id, 10) : null;
 
         if (id) {
             // Actualitzar a la taula tasks directament si es tenen permisos
@@ -542,6 +550,7 @@ async function handleSaveTask() {
                 .insert([insertPayload])
                 .select().single();
             if (insertError) throw insertError;
+            finalTaskId = newTask.id;
 
             // Desar a user_tasks de forma resilient (no bloqueja si la columna personal_link_url no està creada)
             try {
@@ -558,10 +567,8 @@ async function handleSaveTask() {
             }
         }
 
-        // Handle label assignment
-        const taskIdNum = parseInt(id || '0', 10);
-        if (taskIdNum || id) {
-            const finalTaskId = taskIdNum || parseInt(id, 10);
+        // Handle label assignment (també per a tasques noves)
+        if (finalTaskId) {
             await supabaseClient
                 .from('task_label_assignments')
                 .delete()
@@ -580,6 +587,34 @@ async function handleSaveTask() {
     } catch (error) {
         console.error(error);
         alert("Error guardant la tasca: " + (error.message || error));
+    }
+}
+
+async function handleDeleteModalTask() {
+    const id = parseInt(taskIdInput.value, 10);
+    if (!id) return;
+    const task = allTasks.find(t => t.id === id);
+    const msg = task && task.task_type !== 'personal'
+        ? "Eliminar aquesta tasca per a TOTS els usuaris?"
+        : "Eliminar aquesta tasca?";
+    if (!confirm(msg)) return;
+
+    try {
+        // .select() per detectar si RLS ha bloquejat l'esborrat (0 files afectades)
+        const { data, error } = await supabaseClient
+            .from('tasks')
+            .delete()
+            .eq('id', id)
+            .select('id');
+        if (error) throw error;
+        if (!data || data.length === 0) {
+            throw new Error("No tens permisos per eliminar aquesta tasca.");
+        }
+        taskModal.style.display = 'none';
+        await loadAppData();
+    } catch (e) {
+        console.error(e);
+        alert("Error eliminant la tasca: " + (e.message || e));
     }
 }
 

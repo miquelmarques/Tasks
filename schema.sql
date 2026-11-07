@@ -336,3 +336,134 @@ CREATE INDEX IF NOT EXISTS idx_group_members_group ON task_group_members(group_i
 CREATE INDEX IF NOT EXISTS idx_group_members_user ON task_group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_labels_user ON task_labels(user_id);
 
+
+-- ────────────────────────────────────────────────────────────
+-- 9. GESTIÓ D'USUARIS DES DE LA WEB (sense correu de verificació)
+-- ────────────────────────────────────────────────────────────
+-- Supabase no permet crear usuaris des del navegador amb la clau anon.
+-- Aquesta funció (SECURITY DEFINER) crea l'usuari directament a auth.users
+-- amb el correu JA CONFIRMAT, de manera que pot iniciar sessió immediatament.
+-- Només la poden executar administradors globals o administradors de grup.
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+CREATE OR REPLACE FUNCTION public.admin_create_user(
+    p_email        TEXT,
+    p_password     TEXT,
+    p_display_name TEXT DEFAULT NULL,
+    p_group_id     INT  DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_user_id UUID := gen_random_uuid();
+    v_email   TEXT := lower(trim(p_email));
+BEGIN
+    -- Permisos: admin global, o admin del grup indicat
+    IF NOT (
+        public.check_if_admin()
+        OR (p_group_id IS NOT NULL AND public.is_group_admin(p_group_id, auth.uid()))
+    ) THEN
+        RAISE EXCEPTION 'No tens permisos per crear usuaris';
+    END IF;
+
+    IF v_email IS NULL OR v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' THEN
+        RAISE EXCEPTION 'Correu electrònic no vàlid';
+    END IF;
+    IF p_password IS NULL OR length(p_password) < 6 THEN
+        RAISE EXCEPTION 'La contrasenya ha de tenir com a mínim 6 caràcters';
+    END IF;
+    IF EXISTS (SELECT 1 FROM auth.users WHERE email = v_email) THEN
+        RAISE EXCEPTION 'Ja existeix un usuari amb el correu %', v_email;
+    END IF;
+
+    INSERT INTO auth.users (
+        instance_id, id, aud, role, email, encrypted_password,
+        email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+        created_at, updated_at,
+        confirmation_token, recovery_token, email_change_token_new, email_change
+    ) VALUES (
+        '00000000-0000-0000-0000-000000000000', v_user_id, 'authenticated', 'authenticated',
+        v_email, crypt(p_password, gen_salt('bf')),
+        now(), '{"provider":"email","providers":["email"]}'::jsonb,
+        jsonb_build_object('display_name', p_display_name),
+        now(), now(),
+        '', '', '', ''
+    );
+
+    INSERT INTO auth.identities (
+        id, user_id, provider_id, identity_data, provider,
+        last_sign_in_at, created_at, updated_at
+    ) VALUES (
+        gen_random_uuid(), v_user_id, v_user_id::text,
+        jsonb_build_object('sub', v_user_id::text, 'email', v_email, 'email_verified', true),
+        'email', now(), now(), now()
+    );
+
+    -- El trigger on_auth_user_created ja crea el perfil; afegim el nom
+    INSERT INTO public.profiles (id, email, display_name)
+    VALUES (v_user_id, v_email, NULLIF(trim(p_display_name), ''))
+    ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name;
+
+    IF p_group_id IS NOT NULL THEN
+        INSERT INTO public.task_group_members (group_id, user_id, is_admin)
+        VALUES (p_group_id, v_user_id, FALSE)
+        ON CONFLICT (group_id, user_id) DO NOTHING;
+    END IF;
+
+    RETURN v_user_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_create_user(TEXT, TEXT, TEXT, INT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_create_user(TEXT, TEXT, TEXT, INT) TO authenticated;
+
+-- Confirmar manualment un usuari registrat que no ha pogut verificar el correu
+CREATE OR REPLACE FUNCTION public.admin_confirm_user(p_user_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+    IF NOT public.check_if_admin() THEN
+        RAISE EXCEPTION 'Només els administradors globals poden confirmar usuaris';
+    END IF;
+    UPDATE auth.users SET email_confirmed_at = COALESCE(email_confirmed_at, now())
+    WHERE id = p_user_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_confirm_user(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_confirm_user(UUID) TO authenticated;
+
+-- Retorna quins usuaris encara no tenen el correu confirmat (només admins globals)
+CREATE OR REPLACE FUNCTION public.admin_unconfirmed_users()
+RETURNS TABLE (id UUID, email TEXT, created_at TIMESTAMPTZ)
+LANGUAGE plpgsql
+SECURITY DEFINER STABLE
+SET search_path = public, auth
+AS $$
+BEGIN
+    IF NOT public.check_if_admin() THEN
+        RETURN;
+    END IF;
+    RETURN QUERY
+        SELECT u.id, u.email::TEXT, u.created_at
+        FROM auth.users u
+        WHERE u.email_confirmed_at IS NULL
+        ORDER BY u.created_at;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_unconfirmed_users() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_unconfirmed_users() TO authenticated;
+
+-- Crear perfils que falten (usuaris registrats abans que existís el trigger).
+-- Sense perfil, l'usuari NO apareix al selector "Afegir Membre".
+INSERT INTO public.profiles (id, email)
+SELECT u.id, u.email FROM auth.users u
+WHERE NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = u.id)
+ON CONFLICT (id) DO NOTHING;
